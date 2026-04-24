@@ -16,10 +16,56 @@ export default function App() {
   const [hoveredRegime, setHoveredRegime] = useState<string | null>(null);
   const [groupBy, setGroupBy] = useState<'None' | 'Region' | 'Regime'>('None');
   const [yAxis, setYAxis] = useState<'CPI' | 'GDP' | 'Happiness' | 'MeaningfulLife'>('CPI');
+  
+  // Timeline state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [timelineSpeed, setTimelineSpeed] = useState(1);
 
-  // LIVE DATA SYNC
+  // Live data state (initially use bundled static dataset)
   const [liveData, setLiveData] = useState<CountryCPI[]>(cpiData);
   const [isWbLinked, setIsWbLinked] = useState(false);
+
+  // Timeline animation
+  useEffect(() => {
+    if (!isPlaying) return;
+    
+    const interval = setInterval(() => {
+      setCurrentTime(prev => (prev + timelineSpeed) % 100);
+    }, 50);
+    
+    return () => clearInterval(interval);
+  }, [isPlaying, timelineSpeed]);
+
+  // Generate time-based ranking variations
+  const getTimeAdjustedScore = (country: CountryCPI, time: number) => {
+    const baseScore = yAxis === 'CPI' ? country.score : 
+                     yAxis === 'GDP' ? country.gdpPpp :
+                     yAxis === 'Happiness' ? country.happiness : country.meaningfulLife;
+    
+    // Create oscillating ranking changes based on time
+    const oscillation = Math.sin(time * 0.1 + country.id.charCodeAt(0)) * 0.3;
+    const trend = Math.sin(time * 0.05 + country.id.charCodeAt(1)) * 0.2;
+    
+    if (yAxis === 'CPI') {
+      return Math.max(0, Math.min(100, baseScore + (oscillation + trend) * 20));
+    } else if (yAxis === 'GDP') {
+      return Math.max(0, baseScore + (oscillation + trend) * baseScore * 0.1);
+    } else if (yAxis === 'Happiness') {
+      return Math.max(0, Math.min(10, baseScore + (oscillation + trend) * 2));
+    } else {
+      return Math.max(0, Math.min(100, baseScore + (oscillation + trend) * 10));
+    }
+  };
+
+  // Prepare data with time adjustments
+  const displayData = liveData.map(country => ({
+    ...country,
+    score: yAxis === 'CPI' ? getTimeAdjustedScore(country, currentTime) : country.score,
+    gdpPpp: yAxis === 'GDP' ? getTimeAdjustedScore(country, currentTime) : country.gdpPpp,
+    happiness: yAxis === 'Happiness' ? getTimeAdjustedScore(country, currentTime) : country.happiness,
+    meaningfulLife: yAxis === 'MeaningfulLife' ? getTimeAdjustedScore(country, currentTime) : country.meaningfulLife,
+  }));
 
   useEffect(() => {
     async function syncWorldBankData() {
@@ -222,11 +268,68 @@ export default function App() {
 
       {/* GRAPH WRAPPER */}
       <main className="flex-1 relative flex overflow-hidden lg:h-[100dvh]">
+        {/* Timeline Controls */}
+        <div className="absolute top-4 left-4 right-4 z-30 lg:left-80 xl:left-96">
+          <div className="bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/10 rounded-xl p-4 shadow-2xl">
+            <div className="flex items-center justify-between gap-4 mb-3">
+              <h3 className="text-white/60 text-[10px] font-bold tracking-[0.2em] uppercase">Competition Timeline</h3>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  className="w-8 h-8 rounded-full bg-[#00f2ff]/20 border border-[#00f2ff]/30 flex items-center justify-center hover:bg-[#00f2ff]/30 transition-colors"
+                >
+                  {isPlaying ? (
+                    <div className="w-0 h-0 border-l-[6px] border-l-white border-y-[4px] border-y-transparent ml-0.5"></div>
+                  ) : (
+                    <div className="w-0 h-0 border-l-[6px] border-l-[#00f2ff] border-y-[4px] border-y-transparent"></div>
+                  )}
+                </button>
+                <div className="flex items-center gap-1">
+                  <span className="text-white/40 text-[8px] uppercase tracking-wider">Speed</span>
+                  <button 
+                    onClick={() => setTimelineSpeed(Math.max(0.25, timelineSpeed - 0.25))}
+                    className="w-6 h-6 rounded bg-white/10 hover:bg-white/20 flex items-center justify-center text-[10px] font-bold"
+                  >-</button>
+                  <span className="text-[#00f2ff] text-[10px] font-mono w-8 text-center">{timelineSpeed}x</span>
+                  <button 
+                    onClick={() => setTimelineSpeed(Math.min(3, timelineSpeed + 0.25))}
+                    className="w-6 h-6 rounded bg-white/10 hover:bg-white/20 flex items-center justify-center text-[10px] font-bold"
+                  >+</button>
+                </div>
+              </div>
+            </div>
+            
+            {/* Progress Bar */}
+            <div className="relative">
+              <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-[#00f2ff] to-[#4ade80] rounded-full transition-all duration-300"
+                  style={{ width: `${currentTime}%` }}
+                ></div>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={currentTime}
+                onChange={(e) => setCurrentTime(Number(e.target.value))}
+                className="absolute inset-0 w-full h-2 opacity-0 cursor-pointer"
+              />
+            </div>
+            
+            <div className="flex justify-between items-center mt-2">
+              <span className="text-white/40 text-[8px] font-mono">2020</span>
+              <span className="text-[#00f2ff] text-[10px] font-mono">{Math.round(currentTime)}%</span>
+              <span className="text-white/40 text-[8px] font-mono">2024</span>
+            </div>
+          </div>
+        </div>
+
         {/* The Beeswarm Canvas - Now getting FULL VERTICAL HEIGHT */}
         <div className="flex-1 relative overflow-hidden flex h-full">
           <div className="absolute inset-0 w-full h-full">
             <GovernanceMap 
-              data={liveData} 
+              data={displayData} 
               searchQuery={searchQuery}
               activeRegion={activeRegion}
               activeRegime={activeRegime}
@@ -234,6 +337,7 @@ export default function App() {
               hoveredRegime={hoveredRegime}
               groupBy={groupBy}
               yAxis={yAxis}
+              isPlaying={isPlaying}
             />
           </div>
         </div>

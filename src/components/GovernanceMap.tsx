@@ -27,6 +27,7 @@ interface GovernanceMapProps {
   hoveredRegime: string | null;
   groupBy: 'None' | 'Region' | 'Regime';
   yAxis: 'CPI' | 'GDP' | 'Happiness' | 'MeaningfulLife';
+  isPlaying?: boolean;
 }
 
 const yDomains = {
@@ -44,10 +45,12 @@ export default function GovernanceMap({
   hoveredRegion,
   hoveredRegime,
   groupBy,
-  yAxis
+  yAxis,
+  isPlaying = false
 }: GovernanceMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [hasAnimated, setHasAnimated] = useState(false);
   const [hoveredNode, setHoveredNode] = useState<SimulationNode | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
@@ -94,11 +97,14 @@ export default function GovernanceMap({
   const nodes = useMemo(() => {
     if (dimensions.width === 0 || dimensions.height === 0 || isMobile) return [];
 
-    const paddingY = 40; // match render padding safely wrapping 40px diameter nodes
+    const paddingY = 40; // match render padding safely wrapping 48px diameter nodes
     const usableHeight = dimensions.height - paddingY * 2;
-    // Base radius increased for larger nodes (40px diameter)
-    const radius = 20; 
+    // Base radius increased for larger nodes (48px diameter)
+    const radius = 24; 
 
+    // Sort by population for drop order (largest first)
+    const sortedData = [...filteredData].sort((a, b) => b.population - a.population);
+    
     // Value fetcher for Y-Axis
     const getYValue = (d: CountryCPI) => {
       if (yAxis === 'CPI') return d.score;
@@ -128,18 +134,22 @@ export default function GovernanceMap({
       return dimensions.width / 2;
     };
     
-    const simulationNodes: SimulationNode[] = filteredData.map((d) => {
-      const val = Math.min(getYValue(d), domain.max);
-      const targetY = paddingY + usableHeight * (1 - val / domain.max);
+    // Start all from top for drop animation, but they'll settle into proper Y positions
+    const simulationNodes: SimulationNode[] = sortedData.map((d, index) => {
+      // Start from top, spread across width
+      const startX = (index / sortedData.length) * dimensions.width;
+      const startY = paddingY + 50; // Start near top
+      
       return {
         ...d,
-        x: dimensions.width / 2, 
-        y: targetY,
+        x: startX, 
+        y: startY,
         vy: 0,
         vx: 0,
       };
     });
 
+    // Restore original positioning with Y-axis based placement
     const simulation = d3
       .forceSimulation<SimulationNode>(simulationNodes)
       .force(
@@ -147,17 +157,17 @@ export default function GovernanceMap({
         d3.forceY<SimulationNode>((d) => {
            const val = Math.min(getYValue(d), domain.max);
            return paddingY + usableHeight * (1 - val / domain.max);
-        }).strength(1)
+        }).strength(0.8) // Strong attraction to Y positions
       )
       .force(
         'x', 
-        d3.forceX<SimulationNode>(getTargetX).strength(groupBy === 'None' ? 0.04 : 0.2) // Stronger X force when grouped
+        d3.forceX<SimulationNode>(getTargetX).strength(groupBy === 'None' ? 0.04 : 0.2)
       )
       .force('collide', d3.forceCollide<SimulationNode>(radius + 2).iterations(4))
       .stop();
 
     // Warm up the simulation
-    for (let i = 0; i < 150; ++i) {
+    for (let i = 0; i < 120; ++i) {
       simulation.tick();
     }
 
@@ -165,7 +175,7 @@ export default function GovernanceMap({
   }, [filteredData, dimensions.width, dimensions.height, isMobile, groupBy, yAxis]);
 
   const domain = yDomains[yAxis];
-  const paddingY = 40; // Expand vertical stretch matching D3 math (safe for 40px diameter nodes)
+  const paddingY = 40; // Expand vertical stretch matching D3 math (safe for 48px diameter nodes)
   const usableHeight = dimensions.height - paddingY * 2;
 
   // Render group labels at the top of the map when grouped
@@ -327,7 +337,7 @@ export default function GovernanceMap({
                </div>
             )}
 
-          {nodes.map((node) => {
+          {nodes.map((node, index) => {
             const isMatched = normalizedSearch && node.name.toLowerCase().includes(normalizedSearch);
             const isUnmatched = normalizedSearch && !isMatched;
             const isHovered = hoveredNode?.id === node.id;
@@ -346,8 +356,6 @@ export default function GovernanceMap({
             else if (hoveredNode && !isHovered && !isMatched) opacity = 0.4;
             else if ((isUnhoveredRegion || isUnhoveredRegime) && !isMatched) opacity = 0.25;
 
-            const yOffset = (node.score % 3) * 2;
-            
             let currentScale = 1;
             if (isMatched) currentScale = 1.3;
             else if (isHovered) currentScale = 1.5;
@@ -361,14 +369,41 @@ export default function GovernanceMap({
             return (
               <motion.div
                 key={node.id}
-                initial={{ opacity: 0, scale: 0 }}
+                initial={hasAnimated ? {
+                  opacity, 
+                  scale: currentScale,
+                  x: node.x - 24, 
+                  y: node.y - 24 
+                } : {
+                  opacity: 0, 
+                  scale: 0,
+                  x: node.x - 24,
+                  y: 50 // Start from top for initial animation
+                }}
                 animate={{ 
                     opacity, 
                     scale: currentScale,
-                    x: node.x - 20, 
-                    y: node.y - 20 
+                    x: node.x - 24, 
+                    y: node.y - 24 
                 }}
-                transition={{ duration: 0.8, type: "spring", bounce: 0.2 }}
+                transition={hasAnimated ? {
+                  duration: isPlaying ? 2.0 : 0.5, // Smoother, more visible transitions when timeline is playing
+                  type: "spring", 
+                  bounce: isPlaying ? 0.3 : 0.2, // More bounce when animating
+                  damping: isPlaying ? 15 : 25
+                } : {
+                  duration: 1.8, // Initial dropping animation
+                  type: "spring", 
+                  bounce: 0.4,
+                  damping: 12,
+                  stiffness: 100,
+                  delay: (index * 0.08)
+                }}
+                onAnimationComplete={() => {
+                  if (!hasAnimated && index === nodes.length - 1) {
+                    setHasAnimated(true);
+                  }
+                }}
                 className={`absolute flex items-center justify-center cursor-pointer transition-all duration-500 ${
                   isMatched ? 'z-50' : isHovered ? 'z-40' : (isRegionHovered || isRegimeHovered) ? 'z-30' : 'z-10'
                 }`}
@@ -376,16 +411,22 @@ export default function GovernanceMap({
                 onMouseLeave={() => setHoveredNode(null)}
               >
                  <motion.div
-                   animate={{ y: [0, -4 + yOffset, 0] }}
+                   animate={{ y: [0, -3, 0] }}
                    transition={{ 
-                     duration: 4 + (node.score % 3), 
+                     duration: 4, 
                      repeat: Infinity, 
-                     ease: "easeInOut" 
+                     ease: "easeInOut",
+                     bounce: 0.2
                    }}
+                   whileHover={{ 
+                     y: [0, -8, 0],
+                     transition: { duration: 0.8, ease: "easeOut", bounce: 0.5 }
+                   }}
+                   whileTap={{ scale: 0.95, transition: { duration: 0.1 } }}
                    className="relative"
                  >
                     <div 
-                      className={`w-10 h-10 rounded-full overflow-hidden border bg-[#050505] flex items-center justify-center relative
+                      className={`w-12 h-12 rounded-full overflow-hidden border bg-[#050505] flex items-center justify-center relative
                         ${isMatched ? 'border-[#00f2ff]' : 'border-white/10'}
                       `}
                       style={{ 
@@ -401,10 +442,10 @@ export default function GovernanceMap({
                         className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none"
                         loading="lazy"
                       />
-                      <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center z-10 pointer-events-none rounded-full transition-colors">
-                         <span className="text-[10px] font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,1)] leading-none tracking-widest">{node.id}</span>
-                         {node.trend === 'Rising' && <TrendingUp className="w-3.5 h-3.5 text-[#4ade80] drop-shadow-[0_1px_3px_rgba(0,0,0,1)] mt-[1px] stroke-[3]" />}
-                         {node.trend === 'Sinking' && <TrendingDown className="w-3.5 h-3.5 text-[#fb7185] drop-shadow-[0_1px_3px_rgba(0,0,0,1)] mt-[1px] stroke-[3]" />}
+                      <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-center z-10 pointer-events-none rounded-full transition-colors">
+                         <span className="text-[11px] font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,1)] leading-none tracking-widest">{node.id}</span>
+                         {node.trend === 'Rising' && <TrendingUp className="w-4 h-4 text-[#4ade80] drop-shadow-[0_1px_3px_rgba(0,0,0,1)] mt-[1px] stroke-[3]" />}
+                         {node.trend === 'Sinking' && <TrendingDown className="w-4 h-4 text-[#fb7185] drop-shadow-[0_1px_3px_rgba(0,0,0,1)] mt-[1px] stroke-[3]" />}
                       </div>
                     </div>
                  </motion.div>

@@ -13,5 +13,5 @@ export const lerpColor = (score: number) => {
 };
 
 export const getFlagUrl = (countryCode: string) => {
-  return `https://flagcdn.com/w80/${countryCode.toLowerCase()}.png`;
+  return `https://flagcdn.com/w160/${countryCode.toLowerCase()}.png`;
 };
