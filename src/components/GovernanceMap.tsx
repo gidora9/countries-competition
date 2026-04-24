@@ -28,6 +28,7 @@ interface GovernanceMapProps {
   groupBy: 'None' | 'Region' | 'Regime';
   yAxis: 'CPI' | 'GDP' | 'Happiness' | 'MeaningfulLife';
   isPlaying?: boolean;
+  currentTime?: number;
 }
 
 const yDomains = {
@@ -47,8 +48,11 @@ export default function GovernanceMap({
   groupBy,
   yAxis,
   isPlaying = false
+  , currentTime = 0
 }: GovernanceMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const currentTimeRef = useRef<number>(currentTime);
+  currentTimeRef.current = currentTime;
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [hasAnimated, setHasAnimated] = useState(false);
   const [hoveredNode, setHoveredNode] = useState<SimulationNode | null>(null);
@@ -126,6 +130,17 @@ export default function GovernanceMap({
         return d.meaningfulLife;
       };
 
+      // Time-adjusted value using sine oscillation (matches App.tsx behavior)
+      const getTimeAdjustedValue = (d: CountryCPI, time: number) => {
+        const baseScore = yAxis === 'CPI' ? d.score : yAxis === 'GDP' ? d.gdpPpp : yAxis === 'Happiness' ? d.happiness : d.meaningfulLife;
+        const oscillation = Math.sin(time * 0.1 + d.id.charCodeAt(0)) * 0.3;
+        const trend = Math.sin(time * 0.05 + d.id.charCodeAt(1)) * 0.2;
+        if (yAxis === 'CPI') return Math.max(0, Math.min(100, baseScore + (oscillation + trend) * 20));
+        if (yAxis === 'GDP') return Math.max(0, baseScore + (oscillation + trend) * baseScore * 0.1);
+        if (yAxis === 'Happiness') return Math.max(0, Math.min(10, baseScore + (oscillation + trend) * 2));
+        return Math.max(0, Math.min(100, baseScore + (oscillation + trend) * 10));
+      };
+
       const domain = yDomains[yAxis];
 
       const getTargetX = (d: CountryCPI) => {
@@ -160,7 +175,8 @@ export default function GovernanceMap({
       if (!simRef.current) {
         simRef.current = d3.forceSimulation<SimulationNode>(nodesRef.current)
           .force('y', d3.forceY<SimulationNode>((d) => {
-            const val = Math.min(getYValue(d), domain.max);
+            const time = currentTimeRef.current || 0;
+            const val = Math.min(getTimeAdjustedValue(d, time), domain.max);
             return paddingY + usableHeight * (1 - val / domain.max);
           }).strength(0.8))
           .force('x', d3.forceX<SimulationNode>(getTargetX).strength(groupBy === 'None' ? 0.05 : 0.2))

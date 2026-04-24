@@ -58,14 +58,7 @@ export default function App() {
     }
   };
 
-  // Prepare data with time adjustments
-  const displayData = liveData.map(country => ({
-    ...country,
-    score: yAxis === 'CPI' ? getTimeAdjustedScore(country, currentTime) : country.score,
-    gdpPpp: yAxis === 'GDP' ? getTimeAdjustedScore(country, currentTime) : country.gdpPpp,
-    happiness: yAxis === 'Happiness' ? getTimeAdjustedScore(country, currentTime) : country.happiness,
-    meaningfulLife: yAxis === 'MeaningfulLife' ? getTimeAdjustedScore(country, currentTime) : country.meaningfulLife,
-  }));
+  // We'll pass raw `liveData` to GovernanceMap and let it compute time-adjusted positions for performance
 
   useEffect(() => {
     async function syncWorldBankData() {
@@ -329,7 +322,7 @@ export default function App() {
         <div className="flex-1 relative overflow-hidden flex h-full">
           <div className="absolute inset-0 w-full h-full">
             <GovernanceMap 
-              data={displayData} 
+              data={liveData} 
               searchQuery={searchQuery}
               activeRegion={activeRegion}
               activeRegime={activeRegime}
@@ -338,6 +331,7 @@ export default function App() {
               groupBy={groupBy}
               yAxis={yAxis}
               isPlaying={isPlaying}
+              currentTime={currentTime}
             />
           </div>
         </div>
