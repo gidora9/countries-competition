@@ -17,10 +17,12 @@ export default function App() {
   const [groupBy, setGroupBy] = useState<'None' | 'Region' | 'Regime'>('None');
   const [yAxis, setYAxis] = useState<'CPI' | 'GDP' | 'Happiness' | 'MeaningfulLife'>('CPI');
   
-  // Timeline state
+  // Timeline state (year-based)
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [timelineSpeed, setTimelineSpeed] = useState(1);
+  const minYear = 2000;
+  const maxYear = new Date().getFullYear();
+  const [currentTime, setCurrentTime] = useState<number>(maxYear);
+  const [timelineSpeed, setTimelineSpeed] = useState<number>(1);
 
   // Live data state (initially use bundled static dataset)
   const [liveData, setLiveData] = useState<CountryCPI[]>(cpiData);
@@ -29,13 +31,21 @@ export default function App() {
   // Timeline animation
   useEffect(() => {
     if (!isPlaying) return;
-    
+
+    // Advance the year smoothly. Increment per tick is in "years".
+    const tickMs = 100; // ms per tick
+    const yearsPerTickAt1x = 0.05; // at 1x speed this advances ~0.5 year/sec
+
     const interval = setInterval(() => {
-      setCurrentTime(prev => (prev + timelineSpeed) % 100);
-    }, 50);
-    
+      setCurrentTime(prev => {
+        const next = prev + yearsPerTickAt1x * timelineSpeed;
+        if (next >= maxYear) return minYear; // wrap to start
+        return Number(next.toFixed(2));
+      });
+    }, tickMs);
+
     return () => clearInterval(interval);
-  }, [isPlaying, timelineSpeed]);
+  }, [isPlaying, timelineSpeed, minYear, maxYear]);
 
   // Generate time-based ranking variations
   const getTimeAdjustedScore = (country: CountryCPI, time: number) => {
@@ -297,23 +307,24 @@ export default function App() {
               <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-[#00f2ff] to-[#4ade80] rounded-full transition-all duration-300"
-                  style={{ width: `${currentTime}%` }}
+                  style={{ width: `${((currentTime - minYear) / (maxYear - minYear)) * 100}%` }}
                 ></div>
               </div>
               <input
                 type="range"
-                min="0"
-                max="100"
-                value={currentTime}
+                min={minYear}
+                max={maxYear}
+                step={1}
+                value={Math.round(currentTime)}
                 onChange={(e) => setCurrentTime(Number(e.target.value))}
                 className="absolute inset-0 w-full h-2 opacity-0 cursor-pointer"
               />
             </div>
-            
+
             <div className="flex justify-between items-center mt-2">
-              <span className="text-white/40 text-[8px] font-mono">2020</span>
-              <span className="text-[#00f2ff] text-[10px] font-mono">{Math.round(currentTime)}%</span>
-              <span className="text-white/40 text-[8px] font-mono">2024</span>
+              <span className="text-white/40 text-[8px] font-mono">{minYear}</span>
+              <span className="text-[#00f2ff] text-[10px] font-mono">{Math.round(currentTime)}</span>
+              <span className="text-white/40 text-[8px] font-mono">{maxYear}</span>
             </div>
           </div>
         </div>
