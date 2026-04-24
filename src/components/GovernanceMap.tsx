@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import * as d3 from 'd3-force';
 import { motion, AnimatePresence } from 'motion/react';
 import { CountryCPI } from '../data/cpi2024';
@@ -53,6 +53,16 @@ export default function GovernanceMap({
   const [hasAnimated, setHasAnimated] = useState(false);
   const [hoveredNode, setHoveredNode] = useState<SimulationNode | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  // Nodes used for rendering (throttled updates from the running simulation)
+  const [renderNodes, setRenderNodes] = useState<SimulationNode[]>([]);
+  // Refs to hold live simulation and node models without causing re-renders
+  const simRef = useRef<d3.Simulation<SimulationNode, undefined> | null>(null);
+  const nodesRef = useRef<SimulationNode[]>([]);
+  const tickingRef = useRef(false);
+  // Display positions for smooth interpolation (lerp) toward D3 targets
+  const displayRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  // Preserve previous node positions to avoid jumps between re-renders
+  const prevPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
 
   // Responsive: track if mobile
   const isMobile = dimensions.width < 768 && dimensions.width > 0;
@@ -94,85 +104,117 @@ export default function GovernanceMap({
     );
   }, [data, activeRegion, activeRegime]);
 
-  const nodes = useMemo(() => {
-    if (dimensions.width === 0 || dimensions.height === 0 || isMobile) return [];
-
-    const paddingY = 40; // match render padding safely wrapping 48px diameter nodes
-    const usableHeight = dimensions.height - paddingY * 2;
-    // Base radius increased for larger nodes (48px diameter)
-    const radius = 24; 
-
-    // Sort by population for drop order (largest first)
-    const sortedData = [...filteredData].sort((a, b) => b.population - a.population);
-    
-    // Value fetcher for Y-Axis
-    const getYValue = (d: CountryCPI) => {
-      if (yAxis === 'CPI') return d.score;
-      if (yAxis === 'GDP') return d.gdpPpp;
-      if (yAxis === 'Happiness') return d.happiness;
-      return d.meaningfulLife;
-    };
-    
-    const domain = yDomains[yAxis];
-    
-    // Grouping logic for X axis
-    const getTargetX = (d: CountryCPI) => {
-      if (groupBy === 'Region') {
-        const regions = REGIONS.filter(r => r !== 'All'); // 5 regions
-        const index = regions.indexOf(d.region);
-        if (index === -1) return dimensions.width / 2;
-        const columnWidth = dimensions.width / regions.length;
-        return (index * columnWidth) + (columnWidth / 2);
+    // -- D3 Simulation setup and RAF-driven render updates --
+    useEffect(() => {
+      if (dimensions.width === 0 || dimensions.height === 0 || isMobile) {
+        nodesRef.current = [];
+        setRenderNodes([]);
+        return;
       }
-      if (groupBy === 'Regime') {
-        const regimes = REGIMES.filter(r => r !== 'All'); // 4 regimes
-        const index = regimes.indexOf(d.regimeType);
-        if (index === -1) return dimensions.width / 2;
-        const columnWidth = dimensions.width / regimes.length;
-        return (index * columnWidth) + (columnWidth / 2);
-      }
-      return dimensions.width / 2;
-    };
-    
-    // Start all from top for drop animation, but they'll settle into proper Y positions
-    const simulationNodes: SimulationNode[] = sortedData.map((d, index) => {
-      // Start from top, spread across width
-      const startX = (index / sortedData.length) * dimensions.width;
-      const startY = paddingY + 50; // Start near top
-      
-      return {
-        ...d,
-        x: startX, 
-        y: startY,
-        vy: 0,
-        vx: 0,
+
+      const paddingY = 40;
+      const usableHeight = dimensions.height - paddingY * 2;
+      const radius = 24;
+
+      // prepare sorted data
+      const sortedData = [...filteredData].sort((a, b) => b.population - a.population);
+
+      const getYValue = (d: CountryCPI) => {
+        if (yAxis === 'CPI') return d.score;
+        if (yAxis === 'GDP') return d.gdpPpp;
+        if (yAxis === 'Happiness') return d.happiness;
+        return d.meaningfulLife;
       };
-    });
 
-    // Restore original positioning with Y-axis based placement
-    const simulation = d3
-      .forceSimulation<SimulationNode>(simulationNodes)
-      .force(
-        'y',
-        d3.forceY<SimulationNode>((d) => {
-           const val = Math.min(getYValue(d), domain.max);
-           return paddingY + usableHeight * (1 - val / domain.max);
-        }).strength(0.8) // Strong attraction to Y positions
-      )
-      .force(
-        'x', 
-        d3.forceX<SimulationNode>(getTargetX).strength(groupBy === 'None' ? 0.04 : 0.2)
-      )
-      .force('collide', d3.forceCollide<SimulationNode>(radius + 2).iterations(4))
-      .stop();
+      const domain = yDomains[yAxis];
 
-    // Warm up the simulation
-    for (let i = 0; i < 120; ++i) {
-      simulation.tick();
-    }
+      const getTargetX = (d: CountryCPI) => {
+        if (groupBy === 'Region') {
+          const regions = REGIONS.filter(r => r !== 'All');
+          const index = regions.indexOf(d.region);
+          if (index === -1) return dimensions.width / 2;
+          const columnWidth = dimensions.width / regions.length;
+          return (index * columnWidth) + (columnWidth / 2);
+        }
+        if (groupBy === 'Regime') {
+          const regimes = REGIMES.filter(r => r !== 'All');
+          const index = regimes.indexOf(d.regimeType);
+          if (index === -1) return dimensions.width / 2;
+          const columnWidth = dimensions.width / regimes.length;
+          return (index * columnWidth) + (columnWidth / 2);
+        }
+        return dimensions.width / 2;
+      };
 
-    return simulationNodes;
-  }, [filteredData, dimensions.width, dimensions.height, isMobile, groupBy, yAxis]);
+      // Build or update nodesRef
+      const newNodes: SimulationNode[] = sortedData.map((d, index) => {
+        const prev = prevPositionsRef.current.get(d.id);
+        const startX = prev ? prev.x : (index / sortedData.length) * dimensions.width;
+        const startY = prev ? prev.y : paddingY + 50;
+        return { ...d, x: startX, y: startY, vx: 0, vy: 0 };
+      });
+
+      nodesRef.current = newNodes;
+
+      // Create or update simulation
+      if (!simRef.current) {
+        simRef.current = d3.forceSimulation<SimulationNode>(nodesRef.current)
+          .force('y', d3.forceY<SimulationNode>((d) => {
+            const val = Math.min(getYValue(d), domain.max);
+            return paddingY + usableHeight * (1 - val / domain.max);
+          }).strength(0.8))
+          .force('x', d3.forceX<SimulationNode>(getTargetX).strength(groupBy === 'None' ? 0.05 : 0.2))
+          .force('collide', d3.forceCollide<SimulationNode>(radius + 2).iterations(2))
+          .alphaDecay(0.03)
+          .on('tick', () => {
+            if (!tickingRef.current) {
+              tickingRef.current = true;
+              requestAnimationFrame(() => {
+                // Interpolate display positions toward simulation targets
+                nodesRef.current.forEach(n => {
+                  const prev = displayRef.current.get(n.id) || { x: n.x, y: n.y };
+                  const nx = prev.x + (n.x - prev.x) * 0.22;
+                  const ny = prev.y + (n.y - prev.y) * 0.22;
+                  displayRef.current.set(n.id, { x: nx, y: ny });
+                });
+                // Build renderable nodes using interpolated positions
+                setRenderNodes(nodesRef.current.map(n => ({ ...n, x: displayRef.current.get(n.id)!.x, y: displayRef.current.get(n.id)!.y })));
+                tickingRef.current = false;
+              });
+            }
+          });
+      } else {
+        // update nodes in existing simulation and reheat
+        simRef.current.nodes(nodesRef.current);
+        // update forces targets if groupBy / axis changed
+        const yForce = simRef.current.force('y') as d3.ForceY<SimulationNode>;
+        yForce.initialize(nodesRef.current as any);
+        const xForce = simRef.current.force('x') as d3.ForceX<SimulationNode>;
+        xForce.initialize(nodesRef.current as any);
+        simRef.current.alpha(0.9).restart();
+      }
+
+      // run a few ticks quickly to settle a bit
+      for (let i = 0; i < 60; i++) simRef.current?.tick();
+      // initialize display positions if empty
+      nodesRef.current.forEach(n => {
+        if (!displayRef.current.has(n.id)) displayRef.current.set(n.id, { x: n.x, y: n.y });
+      });
+      setRenderNodes(nodesRef.current.map(n => ({ ...n, x: displayRef.current.get(n.id)!.x, y: displayRef.current.get(n.id)!.y })));
+
+      // Save positions for next render
+      nodesRef.current.forEach(n => prevPositionsRef.current.set(n.id, { x: n.x, y: n.y }));
+
+      return () => {
+        // stop simulation listeners to avoid leaks
+        if (simRef.current) {
+          simRef.current.on('tick', null);
+          // keep simulation alive in background but disconnecting here is fine
+        }
+      };
+    }, [filteredData, dimensions.width, dimensions.height, isMobile, groupBy, yAxis]);
+
+    
 
   const domain = yDomains[yAxis];
   const paddingY = 40; // Expand vertical stretch matching D3 math (safe for 48px diameter nodes)
@@ -337,7 +379,7 @@ export default function GovernanceMap({
                </div>
             )}
 
-          {nodes.map((node, index) => {
+          {renderNodes.map((node, index) => {
             const isMatched = normalizedSearch && node.name.toLowerCase().includes(normalizedSearch);
             const isUnmatched = normalizedSearch && !isMatched;
             const isHovered = hoveredNode?.id === node.id;
@@ -370,34 +412,36 @@ export default function GovernanceMap({
               <motion.div
                 key={node.id}
                 initial={hasAnimated ? {
-                  opacity, 
+                  opacity,
                   scale: currentScale,
-                  x: node.x - 24, 
-                  y: node.y - 24 
+                  x: node.x - 24,
+                  y: node.y - 24
                 } : {
-                  opacity: 0, 
+                  opacity: 0,
                   scale: 0,
                   x: node.x - 24,
-                  y: 50 // Start from top for initial animation
+                  y: 50
                 }}
-                animate={{ 
-                    opacity, 
-                    scale: currentScale,
-                    x: node.x - 24, 
-                    y: node.y - 24 
+                animate={{
+                  opacity,
+                  scale: currentScale,
+                  x: node.x - 24,
+                  y: node.y - 24
                 }}
                 transition={hasAnimated ? {
-                  duration: isPlaying ? 2.0 : 0.5, // Smoother, more visible transitions when timeline is playing
-                  type: "spring", 
-                  bounce: isPlaying ? 0.3 : 0.2, // More bounce when animating
-                  damping: isPlaying ? 15 : 25
+                  type: 'spring',
+                  // Use stiffness/damping for predictable spring behaviour instead of duration
+                  stiffness: isPlaying ? 80 : 160,
+                  damping: isPlaying ? 22 : 36,
+                  // small bounce for liveliness but avoid large overshoot
+                  bounce: isPlaying ? 0.18 : 0.12
                 } : {
-                  duration: 1.8, // Initial dropping animation
-                  type: "spring", 
-                  bounce: 0.4,
-                  damping: 12,
-                  stiffness: 100,
-                  delay: (index * 0.08)
+                  // Initial drop uses a slower spring with visible stagger
+                  type: 'spring',
+                  stiffness: 120,
+                  damping: 14,
+                  bounce: 0.35,
+                  delay: (index * 0.06)
                 }}
                 onAnimationComplete={() => {
                   if (!hasAnimated && index === nodes.length - 1) {
@@ -411,12 +455,12 @@ export default function GovernanceMap({
                 onMouseLeave={() => setHoveredNode(null)}
               >
                  <motion.div
-                   animate={{ y: [0, -3, 0] }}
+                   animate={isPlaying ? { y: 0 } : { y: [0, -3, 0] }}
                    transition={{ 
-                     duration: 4, 
-                     repeat: Infinity, 
+                     duration: 4.2, 
+                     repeat: isPlaying ? 0 : Infinity, 
                      ease: "easeInOut",
-                     bounce: 0.2
+                     bounce: 0.12
                    }}
                    whileHover={{ 
                      y: [0, -8, 0],
