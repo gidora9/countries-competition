@@ -171,15 +171,21 @@ export default function GovernanceMap({
 
       nodesRef.current = newNodes;
 
-      // Create or update simulation
+      const yForce = d3.forceY<SimulationNode>((d) => {
+        const minYear = 2000;
+        const maxYear = new Date().getFullYear();
+        const raw = currentTimeRef.current || minYear;
+        const timeNormalized = ((raw - minYear) / (maxYear - minYear)) * 100;
+        const val = Math.min(getTimeAdjustedValue(d, timeNormalized), domain.max);
+        return paddingY + usableHeight * (1 - val / domain.max);
+      }).strength(0.8);
+
+      const xForce = d3.forceX<SimulationNode>(getTargetX).strength(groupBy === 'None' ? 0.05 : 0.2);
+
       if (!simRef.current) {
         simRef.current = d3.forceSimulation<SimulationNode>(nodesRef.current)
-          .force('y', d3.forceY<SimulationNode>((d) => {
-            const time = currentTimeRef.current || 0;
-            const val = Math.min(getTimeAdjustedValue(d, time), domain.max);
-            return paddingY + usableHeight * (1 - val / domain.max);
-          }).strength(0.8))
-          .force('x', d3.forceX<SimulationNode>(getTargetX).strength(groupBy === 'None' ? 0.05 : 0.2))
+          .force('y', yForce)
+          .force('x', xForce)
           .force('collide', d3.forceCollide<SimulationNode>(radius + 2).iterations(2))
           .alphaDecay(0.03)
           .on('tick', () => {
@@ -200,13 +206,9 @@ export default function GovernanceMap({
             }
           });
       } else {
-        // update nodes in existing simulation and reheat
         simRef.current.nodes(nodesRef.current);
-        // update forces targets if groupBy / axis changed
-        const yForce = simRef.current.force('y') as d3.ForceY<SimulationNode>;
-        yForce.initialize(nodesRef.current as any);
-        const xForce = simRef.current.force('x') as d3.ForceX<SimulationNode>;
-        xForce.initialize(nodesRef.current as any);
+        simRef.current.force('y', yForce);
+        simRef.current.force('x', xForce);
         simRef.current.alpha(0.9).restart();
       }
 
@@ -225,12 +227,14 @@ export default function GovernanceMap({
         // stop simulation listeners to avoid leaks
         if (simRef.current) {
           simRef.current.on('tick', null);
-          // keep simulation alive in background but disconnecting here is fine
         }
       };
     }, [filteredData, dimensions.width, dimensions.height, isMobile, groupBy, yAxis]);
 
-    
+  useEffect(() => {
+    if (!simRef.current) return;
+    simRef.current.alpha(0.9).restart();
+  }, [currentTime, isPlaying]);
 
   const domain = yDomains[yAxis];
   const paddingY = 40; // Expand vertical stretch matching D3 math (safe for 48px diameter nodes)

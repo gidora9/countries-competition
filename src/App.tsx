@@ -47,27 +47,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isPlaying, timelineSpeed, minYear, maxYear]);
 
-  // Generate time-based ranking variations
-  const getTimeAdjustedScore = (country: CountryCPI, time: number) => {
-    const baseScore = yAxis === 'CPI' ? country.score : 
-                     yAxis === 'GDP' ? country.gdpPpp :
-                     yAxis === 'Happiness' ? country.happiness : country.meaningfulLife;
-    
-    // Create oscillating ranking changes based on time
-    const oscillation = Math.sin(time * 0.1 + country.id.charCodeAt(0)) * 0.3;
-    const trend = Math.sin(time * 0.05 + country.id.charCodeAt(1)) * 0.2;
-    
-    if (yAxis === 'CPI') {
-      return Math.max(0, Math.min(100, baseScore + (oscillation + trend) * 20));
-    } else if (yAxis === 'GDP') {
-      return Math.max(0, baseScore + (oscillation + trend) * baseScore * 0.1);
-    } else if (yAxis === 'Happiness') {
-      return Math.max(0, Math.min(10, baseScore + (oscillation + trend) * 2));
-    } else {
-      return Math.max(0, Math.min(100, baseScore + (oscillation + trend) * 10));
-    }
-  };
-
   // We'll pass raw `liveData` to GovernanceMap and let it compute time-adjusted positions for performance
 
   useEffect(() => {
@@ -275,7 +254,7 @@ export default function App() {
         <div className="absolute top-4 left-4 right-4 z-30 lg:left-80 xl:left-96">
           <div className="bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/10 rounded-xl p-4 shadow-2xl">
             <div className="flex items-center justify-between gap-4 mb-3">
-              <h3 className="text-white/60 text-[10px] font-bold tracking-[0.2em] uppercase">Competition Timeline</h3>
+              <h3 className="text-white/60 text-[10px] font-bold tracking-[0.2em] uppercase">Year Timeline</h3>
               <div className="flex items-center gap-2">
                 <button 
                   onClick={() => setIsPlaying(!isPlaying)}
