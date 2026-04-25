@@ -1,37 +1,111 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Geist:wght@100;300;400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Geist:wght@100;300;400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Geist", "Inter", sans-serif;
   --font-mono: "Inter", monospace;
-  --color-brand-cyan: #00f2ff;
-  --color-brand-slate: #222222;
+  
+  --color-surface-canvas: var(--surface-canvas);
+  --color-surface-panel: var(--surface-panel);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-glass: var(--surface-glass);
+  
+  --color-border-soft: var(--border-soft);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-glow: var(--brand-glow);
+  --color-brand-soft: var(--brand-soft);
+}
+
+:root {
+  /* LIGHT THEME (Pro Max) */
+  --surface-canvas: #f4f6f8;
+  --surface-panel: #ffffff;
+  --surface-hover: #e2e8f0;
+  --surface-glass: rgba(255, 255, 255, 0.85);
+
+  --border-soft: rgba(0, 0, 0, 0.04);
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.15);
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+
+  --brand-accent: #0284c7; /* elegant cerulean */
+  --brand-glow: rgba(2, 132, 199, 0.2);
+  --brand-soft: rgba(2, 132, 199, 0.08);
+  
+  --bg-pattern-1: rgba(2, 132, 199, 0.04);
+  --bg-pattern-2: rgba(16, 185, 129, 0.03);
+  --bg-pattern-grid: rgba(0, 0, 0, 0.03);
+}
+
+:root.dark {
+  /* DARK THEME (Original Cyberpunk Vibe) */
+  --surface-canvas: #050505;
+  --surface-panel: #070707;
+  --surface-hover: rgba(255, 255, 255, 0.05);
+  --surface-glass: rgba(5, 5, 5, 0.85);
+
+  --border-soft: rgba(255, 255, 255, 0.05);
+  --border-subtle: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.2);
+
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-tertiary: rgba(255, 255, 255, 0.3);
+
+  --brand-accent: #00f2ff;
+  --brand-glow: rgba(0, 242, 255, 0.2);
+  --brand-soft: rgba(0, 242, 255, 0.1);
+  
+  --bg-pattern-1: rgba(0, 242, 255, 0.04);
+  --bg-pattern-2: rgba(74, 222, 128, 0.02);
+  --bg-pattern-grid: rgba(255, 255, 255, 0.02);
 }
 
 body {
-  background-color: #050505;
-  color: white;
+  background-color: var(--surface-canvas);
+  color: var(--text-primary);
   margin: 0;
   padding: 0;
   overflow: hidden;
+  transition: background-color 0.4s ease, color 0.4s ease;
+  background-image: 
+    radial-gradient(circle at 15% 50%, var(--bg-pattern-1) 0%, transparent 40%),
+    radial-gradient(circle at 85% 30%, var(--bg-pattern-2) 0%, transparent 40%),
+    linear-gradient(var(--bg-pattern-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bg-pattern-grid) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+  background-position: center center;
 }
 
-/* Custom Scrollbar for Mobile Lists */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+.glow-selected {
+  box-shadow: 0 0 25px var(--brand-glow), inset 0 0 15px var(--brand-soft);
+  transition: box-shadow 0.4s ease;
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+
+.text-glow {
+  text-shadow: 0 0 15px var(--brand-glow);
 }
+
+/* Custom Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--border-strong);
   border-radius: 10px;
+  transition: background 0.3s;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
+::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  scrollbar-color: var(--border-strong) transparent;
 }
