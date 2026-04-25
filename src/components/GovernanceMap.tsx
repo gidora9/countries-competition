@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import * as d3 from 'd3-force';
 import { motion, AnimatePresence } from 'motion/react';
 import { CountryCPI } from '../data/cpi2024';
@@ -8,11 +8,6 @@ import { TrendingDown, TrendingUp, Minus } from 'lucide-react';
 interface SimulationNode extends d3.SimulationNodeDatum, CountryCPI {
   x: number;
   y: number;
-}
-
-interface GovernanceMapProps {
-  data: CountryCPI[];
-  searchQuery: string;
 }
 
 export const REGIONS = ['All', 'Europe', 'Americas', 'Asia Pacific', 'Middle East', 'Africa'];
@@ -47,8 +42,8 @@ export default function GovernanceMap({
   hoveredRegime,
   groupBy,
   yAxis,
-  isPlaying = false
-  , currentTime = 0
+  isPlaying = false,
+  currentTime = 0
 }: GovernanceMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const currentTimeRef = useRef<number>(currentTime);
@@ -464,7 +459,7 @@ export default function GovernanceMap({
                   delay: (index * 0.06)
                 }}
                 onAnimationComplete={() => {
-                  if (!hasAnimated && index === nodes.length - 1) {
+                  if (!hasAnimated && index === renderNodes.length - 1) {
                     setHasAnimated(true);
                   }
                 }}
