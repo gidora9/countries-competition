@@ -130,8 +130,10 @@ export default function GovernanceMap({
         let baseScore;
         if (yAxis === 'CPI') {
           baseScore = d.scoreHistory ? d.scoreHistory[Math.floor(time)] || d.score : d.score;
+        } else if (yAxis === 'GDP') {
+          baseScore = d.gdpHistory ? d.gdpHistory[Math.floor(time)] || d.gdpPpp : d.gdpPpp;
         } else {
-          baseScore = yAxis === 'GDP' ? d.gdpPpp : yAxis === 'Happiness' ? d.happiness : d.meaningfulLife;
+          baseScore = yAxis === 'Happiness' ? d.happiness : d.meaningfulLife;
         }
         const oscillation = Math.sin(time * 0.1 + d.id.charCodeAt(0)) * 0.3;
         const trend = Math.sin(time * 0.05 + d.id.charCodeAt(1)) * 0.2;
