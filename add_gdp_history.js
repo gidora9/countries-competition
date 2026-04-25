@@ -100,20 +100,22 @@ gdpData.forEach(d => {
   }
 });
 
-const content = fs.readFileSync('./src/data/cpi2024.ts', 'utf8');
+let content = fs.readFileSync('./src/data/cpi2024.ts', 'utf8');
 
-let newContent = content.replace(/gdpPpp: (\d+),/g, (match, gdp) => {
-  const id = match.split("'")[1]; // extract id from the line
+// Find all country objects and add/replace gdpHistory
+content = content.replace(/(\{ id: '(\w+)', .*? gdpPpp: (\d+),)(.*?)( \})/g, (match, start, id, gdp, middle, end) => {
   const iso3 = iso2to3[id];
-  let gdpHistory = '';
   if (iso3 && gdpByCountryYear[iso3]) {
     const hist = {};
     for (let y = 2000; y <= 2023; y++) {
       hist[y] = gdpByCountryYear[iso3][y] || parseInt(gdp);
     }
-    gdpHistory = `, gdpHistory: ${JSON.stringify(hist)}`;
+    const gdpHistoryStr = `, gdpHistory: ${JSON.stringify(hist)}`;
+    // Remove existing gdpHistory if present
+    const cleanedMiddle = middle.replace(/ gdpHistory: \{[^}]*\}, /, '');
+    return `${start}${cleanedMiddle}${gdpHistoryStr}${end}`;
   }
-  return `gdpPpp: ${gdp}${gdpHistory},`;
+  return match;
 });
 
-fs.writeFileSync('./src/data/cpi2024.ts', newContent);
+fs.writeFileSync('./src/data/cpi2024.ts', content);
