@@ -132,6 +132,10 @@ export default function GovernanceMap({
           baseScore = d.scoreHistory ? d.scoreHistory[Math.floor(time)] || d.score : d.score;
         } else if (yAxis === 'GDP') {
           baseScore = d.gdpHistory ? d.gdpHistory[Math.floor(time)] || d.gdpPpp : d.gdpPpp;
+        } else if (yAxis === 'Happiness') {
+          baseScore = d.happinessHistory ? d.happinessHistory[Math.floor(time)] || d.happiness : d.happiness;
+        } else if (yAxis === 'MeaningfulLife') {
+          baseScore = d.meaningfulLifeHistory ? d.meaningfulLifeHistory[Math.floor(time)] || d.meaningfulLife : d.meaningfulLife;
         } else {
           baseScore = yAxis === 'Happiness' ? d.happiness : d.meaningfulLife;
         }
