@@ -2,6 +2,7 @@ export interface CountryCPI {
   id: string;
   name: string;
   score: number;
+  scoreHistory?: { [year: number]: number };
   trend: 'Rising' | 'Sinking' | 'Stable';
   region: string;
   regimeType: string;
@@ -12,7 +13,7 @@ export interface CountryCPI {
 }
 
 export const cpiData: CountryCPI[] = [
-  { id: 'DK', name: 'Denmark', score: 90, trend: 'Stable', region: 'Europe', regimeType: 'Full Democracy', gdpPpp: 73386, happiness: 7.6, meaningfulLife: 88, population: 5900000 },
+  { id: 'DK', name: 'Denmark', score: 90, scoreHistory: {2000: 90, 2001: 90, 2002: 90, 2003: 90, 2004: 90, 2005: 90, 2006: 90, 2007: 90, 2008: 90, 2009: 90, 2010: 90, 2011: 90, 2012: 90, 2013: 90, 2014: 90, 2015: 90, 2016: 90, 2017: 90, 2018: 90, 2019: 90, 2020: 90, 2021: 90, 2022: 90, 2023: 90, 2024: 90, 2025: 90}, trend: 'Stable', region: 'Europe', regimeType: 'Full Democracy', gdpPpp: 73386, happiness: 7.6, meaningfulLife: 88, population: 5900000 },
   { id: 'FI', name: 'Finland', score: 87, trend: 'Stable', region: 'Europe', regimeType: 'Full Democracy', gdpPpp: 413436, happiness: 6.9, meaningfulLife: 79, population: 5500000 },
   { id: 'NZ', name: 'New Zealand', score: 85, trend: 'Sinking', region: 'Asia Pacific', regimeType: 'Full Democracy', gdpPpp: 388304, happiness: 6.8, meaningfulLife: 78, population: 5200000 },
   { id: 'NO', name: 'Norway', score: 84, trend: 'Rising', region: 'Europe', regimeType: 'Full Democracy', gdpPpp: 82000, happiness: 7.4, meaningfulLife: 84, population: 5400000 },

@@ -127,7 +127,12 @@ export default function GovernanceMap({
 
       // Time-adjusted value using sine oscillation (matches App.tsx behavior)
       const getTimeAdjustedValue = (d: CountryCPI, time: number) => {
-        const baseScore = yAxis === 'CPI' ? d.score : yAxis === 'GDP' ? d.gdpPpp : yAxis === 'Happiness' ? d.happiness : d.meaningfulLife;
+        let baseScore;
+        if (yAxis === 'CPI') {
+          baseScore = d.scoreHistory ? d.scoreHistory[Math.floor(time)] || d.score : d.score;
+        } else {
+          baseScore = yAxis === 'GDP' ? d.gdpPpp : yAxis === 'Happiness' ? d.happiness : d.meaningfulLife;
+        }
         const oscillation = Math.sin(time * 0.1 + d.id.charCodeAt(0)) * 0.3;
         const trend = Math.sin(time * 0.05 + d.id.charCodeAt(1)) * 0.2;
         if (yAxis === 'CPI') return Math.max(0, Math.min(100, baseScore + (oscillation + trend) * 20));
