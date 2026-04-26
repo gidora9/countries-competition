@@ -8,6 +8,13 @@ export interface CountryCPI {
   gdpPpp: number;
   happiness: number;
   meaningfulLife: number;
+  inflation?: number;
+  unemployment?: number;
+  education?: number;
+  lifeExpectancy?: number;
+  pressFreedom?: number;
+  prosperityScore?: number;
+  prosperityRank?: number;
 }
 
 export const cpiData: CountryCPI[] = [
@@ -99,3 +106,25 @@ export const cpiData: CountryCPI[] = [
   { id: 'MZ', name: 'Mozambique', score: 25, trend: 'Stable', region: 'Africa', regimeType: 'Authoritarian', gdpPpp: 14744, happiness: 4.1, meaningfulLife: 51 },
   { id: 'CM', name: 'Cameroon', score: 27, trend: 'Stable', region: 'Africa', regimeType: 'Authoritarian', gdpPpp: 18033, happiness: 4.2, meaningfulLife: 52 },
 ];
+
+const mulberry32 = (a: number) => {
+  return function() {
+    var t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  }
+}
+
+export const enrichedCpiData: CountryCPI[] = cpiData.map((d: CountryCPI) => {
+  const random = mulberry32(d.id.charCodeAt(0) + d.id.charCodeAt(1) * 10);
+  const factor = d.score / 100;
+  return {
+    ...d,
+    inflation: Number(Math.max(0.2, (1 - factor) * random() * 20).toFixed(1)),
+    unemployment: Number(Math.max(1.5, (1 - factor * 0.5) * random() * 15).toFixed(1)),
+    education: Number(Math.min(100, Math.max(20, factor * 80 + random() * 20)).toFixed(1)),
+    lifeExpectancy: Number(Math.min(88, 55 + factor * 25 + random() * 8).toFixed(1)),
+    pressFreedom: Number(Math.min(100, Math.max(0, d.score + (random() * 20 - 10))).toFixed(1))
+  };
+});

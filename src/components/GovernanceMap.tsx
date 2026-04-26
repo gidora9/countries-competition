@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef, memo, useCallback } from 'react';
 import * as d3 from 'd3-force';
 import { motion, AnimatePresence } from 'motion/react';
 import { CountryCPI } from '../data/cpi2024';
@@ -10,6 +10,138 @@ interface SimulationNode extends d3.SimulationNodeDatum, CountryCPI {
   y: number;
 }
 
+interface MapNodeProps {
+  node: SimulationNode;
+  radius: number;
+  isMatched: boolean | '' | 0 | undefined;
+  isUnmatched: boolean | '' | 0 | undefined;
+  isHovered: boolean;
+  isSelected: boolean;
+  isRegionHovered: boolean | '' | 0 | undefined;
+  isRegimeHovered: boolean | '' | 0 | undefined;
+  isUnhoveredRegion: boolean | '' | 0 | undefined;
+  isUnhoveredRegime: boolean | '' | 0 | undefined;
+  hasSelection: boolean;
+  isPlaying: boolean;
+  onMouseEnter: (node: SimulationNode) => void;
+  onMouseLeave: () => void;
+  onClick: (id: string) => void;
+}
+
+const MapNode = memo(({
+  node, radius, isMatched, isUnmatched, isHovered, isSelected, 
+  isRegionHovered, isRegimeHovered, isUnhoveredRegion, isUnhoveredRegime, 
+  hasSelection, isPlaying, onMouseEnter, onMouseLeave, onClick
+}: MapNodeProps) => {
+  const isHighlighted = isSelected || isMatched || isHovered || isRegionHovered || isRegimeHovered;
+  
+  let opacity = 1;
+  let grayscale = false;
+  
+  if (isSelected) opacity = 1;
+  else if (isUnmatched) { opacity = 0.1; grayscale = true; }
+  else if (hasSelection && !isSelected) { opacity = 0.1; grayscale = true; }
+  else if (!isHovered && !isMatched && (isUnhoveredRegion || isUnhoveredRegime)) opacity = 0.15;
+  else if (!isHovered && !isMatched && (opacity === 1)) opacity = 0.8; // Default fade for non-highlighted
+
+  const yOffset = (node.score % 3) * 2;
+  
+  let currentScale = 1;
+  if (isSelected) currentScale = 1.4;
+  else if (isMatched) currentScale = 1.3;
+  else if (isHovered) currentScale = 1.5;
+  else if (isRegionHovered || isRegimeHovered) currentScale = 1.15;
+  else if (hasSelection && !isSelected) currentScale = 0.7;
+
+  const colorVal = node.prosperityScore || node.score;
+
+  const [pulseDir, setPulseDir] = useState<'Up'|'Down'|null>(null);
+  const prevValRef = useRef(colorVal);
+
+  useEffect(() => {
+     if (Math.abs(colorVal - prevValRef.current) >= 3) {
+        setPulseDir(colorVal > prevValRef.current ? 'Up' : 'Down');
+        const t = setTimeout(() => setPulseDir(null), 850);
+        prevValRef.current = colorVal;
+        return () => clearTimeout(t);
+     }
+     prevValRef.current = colorVal;
+  }, [colorVal]);
+
+  let currentShadow = 'none';
+  if (isSelected) currentShadow = `0 0 30px ${lerpColor(colorVal)}, inset 0 0 15px rgba(255,255,255,0.7)`;
+  else if (isMatched) currentShadow = '0 0 20px rgba(0, 242, 255, 0.8)';
+  else if (isHovered) currentShadow = `0 0 15px ${lerpColor(colorVal)}`;
+  else if (isRegionHovered || isRegimeHovered) currentShadow = `0 0 15px ${lerpColor(colorVal)}`;
+  
+  // Natural, fluid transitions
+  const trans = {
+    duration: isPlaying ? 0.8 : 0.6,
+    type: "spring" as const,
+    bounce: isPlaying ? 0.3 : 0.2
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: currentScale }}
+      animate={{ 
+          opacity, 
+          scale: currentScale,
+          x: node.x - radius, 
+          y: node.y - radius 
+      }}
+      transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+      className={`absolute flex items-center justify-center cursor-pointer transition-all duration-500 z-10 ${
+        isSelected ? '!z-[60]' : isMatched ? '!z-50' : isHovered ? '!z-40' : (isRegionHovered || isRegimeHovered) ? '!z-30' : ''
+      } ${grayscale ? 'grayscale brightness-75' : ''}`}
+      onMouseEnter={() => onMouseEnter(node)}
+      onMouseLeave={onMouseLeave}
+      onClick={() => onClick(node.id)}
+    >
+       <div
+         className="relative"
+         style={{
+           animation: `float-gentle ${4 + (node.score % 3)}s ease-in-out infinite`,
+           '--float-offset': `${-4 + yOffset}px`
+         } as React.CSSProperties}
+       >
+          <div 
+            className={`rounded-full overflow-hidden border bg-[#050505] flex items-center justify-center relative transition-colors duration-500
+              ${isSelected ? 'border-white' : isMatched ? 'border-[#00f2ff]' : 'border-white/10'}
+            `}
+            style={{ 
+              width: `${radius * 2}px`,
+              height: `${radius * 2}px`,
+              borderColor: isSelected ? '#fff' : isMatched ? '#00f2ff' : isHighlighted ? '#fff' : lerpColor(colorVal),
+              boxShadow: currentShadow,
+              borderWidth: isHighlighted ? '2px' : '1px',
+              filter: isHighlighted && !isHovered ? 'brightness(1.2)' : 'brightness(1)',
+            }}
+          >
+            <img
+              src={getFlagUrl(node.id)}
+              alt={`${node.name} Flag`}
+              className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none"
+              loading="lazy"
+            />
+            <div className={`absolute inset-0 bg-black/40 flex flex-col items-center justify-center z-10 pointer-events-none rounded-full transition-opacity duration-300 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+               <span className="text-[10px] font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,1)] leading-none tracking-widest">{node.id}</span>
+            </div>
+            {/* Standalone Pulse Indicator */}
+            <div className={`absolute inset-0 flex items-center justify-center z-20 pointer-events-none transition-opacity duration-300 ${pulseDir && !isHovered ? 'opacity-100' : 'opacity-0'}`}>
+              <div className="bg-black/60 backdrop-blur-md rounded-full p-0.5 shadow-[0_0_10px_rgba(0,0,0,0.5)]">
+                {pulseDir === 'Up' && <TrendingUp className="w-4 h-4 text-[#4ade80] animate-bounce stroke-[3]" />}
+                {pulseDir === 'Down' && <TrendingDown className="w-4 h-4 text-[#fb7185] animate-bounce stroke-[3]" />}
+              </div>
+            </div>
+          </div>
+       </div>
+    </motion.div>
+  );
+});
+
+MapNode.displayName = 'MapNode';
+
 interface GovernanceMapProps {
   data: CountryCPI[];
   searchQuery: string;
@@ -17,6 +149,8 @@ interface GovernanceMapProps {
 
 export const REGIONS = ['All', 'Europe', 'Americas', 'Asia Pacific', 'Middle East', 'Africa'];
 export const REGIMES = ['All', 'Full Democracy', 'Flawed Democracy', 'Hybrid Regime', 'Authoritarian'];
+
+import { YAxisMetric } from '../App';
 
 interface GovernanceMapProps {
   data: CountryCPI[];
@@ -26,17 +160,24 @@ interface GovernanceMapProps {
   hoveredRegion: string | null;
   hoveredRegime: string | null;
   groupBy: 'None' | 'Region' | 'Regime';
-  yAxis: 'CPI' | 'GDP' | 'Happiness' | 'MeaningfulLife';
+  yAxis: YAxisMetric;
   selectedNodeIds?: string[];
   onNodeClick?: (id: string) => void;
   currentYear?: number;
+  isPlaying?: boolean;
 }
 
-const yDomains = {
-  CPI: { max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => v === 100 ? "100" : v === 0 ? "00" : v },
+const yDomains: Record<YAxisMetric, { max: number, ticks: number[], format: (v: number) => string }> = {
+  ProsperityScore: { max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => v.toFixed(0) },
+  CPI: { max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => v === 100 ? "100" : v === 0 ? "00" : v.toString() },
   GDP: { max: 120000, ticks: [120000, 96000, 72000, 48000, 24000, 0], format: (v: number) => v === 0 ? "$0" : `$${Math.round(v/1000)}k` },
   Happiness: { max: 10, ticks: [10, 8, 6, 4, 2, 0], format: (v: number) => v.toString() },
-  MeaningfulLife: { max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => `${v}%` }
+  MeaningfulLife: { max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => `${v}%` },
+  Inflation: { max: 50, ticks: [50, 40, 30, 20, 10, 0], format: (v: number) => `${v}%` },
+  Unemployment: { max: 30, ticks: [30, 24, 18, 12, 6, 0], format: (v: number) => `${v}%` },
+  Education: { max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => v.toString() },
+  LifeExpectancy: { max: 90, ticks: [90, 75, 60, 45, 30, 15], format: (v: number) => v.toString() },
+  PressFreedom: { max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => v.toString() },
 };
 
 export default function GovernanceMap({ 
@@ -50,33 +191,83 @@ export default function GovernanceMap({
   yAxis,
   selectedNodeIds = [],
   onNodeClick = () => {},
-  currentYear = 2024
+  currentYear = 2024,
+  isPlaying = false
 }: GovernanceMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [hoveredNode, setHoveredNode] = useState<SimulationNode | null>(null);
 
+  // Value fetcher for Y-Axis
+  const getYValue = (d: CountryCPI) => {
+    switch (yAxis) {
+      case 'ProsperityScore': return d.prosperityScore || 0;
+      case 'CPI': return d.score;
+      case 'GDP': return d.gdpPpp;
+      case 'Happiness': return d.happiness;
+      case 'MeaningfulLife': return d.meaningfulLife;
+      case 'Inflation': return d.inflation || 0;
+      case 'Unemployment': return d.unemployment || 0;
+      case 'Education': return d.education || 0;
+      case 'LifeExpectancy': return d.lifeExpectancy || 0;
+      case 'PressFreedom': return d.pressFreedom || 0;
+      default: return d.score;
+    }
+  };
+
+  const thresholds = useMemo(() => {
+    if (data.length === 0) return { top5: 0, median: 0, bottom5: 0 };
+    const sorted = [...data].map(d => getYValue(d)).sort((a,b) => a - b);
+    return {
+      top5: sorted[Math.floor(sorted.length * 0.95)],
+      median: sorted[Math.floor(sorted.length / 2)],
+      bottom5: sorted[Math.floor(sorted.length * 0.05)],
+    };
+  }, [data, yAxis]);
+
   // Responsive: track if mobile
   const isMobile = dimensions.width < 768 && dimensions.width > 0;
 
-  // Resize observer (Debounced to prevent dense D3 reflows)
+  const handleNodeMouseEnter = useCallback((node: SimulationNode) => {
+    setHoveredNode(node);
+  }, []);
+
+  const handleNodeMouseLeave = useCallback(() => {
+    setHoveredNode(null);
+  }, []);
+
+  const handleNodeClickBounded = useCallback((id: string) => {
+    onNodeClick(id);
+  }, [onNodeClick]);
   useEffect(() => {
     if (!containerRef.current) return;
+    let frameId: number;
     let timeoutId: NodeJS.Timeout;
     const observer = new ResizeObserver((entries) => {
       const { width, height } = entries[0].contentRect;
+      cancelAnimationFrame(frameId);
       clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
+      
+      // Fast path for initial layout
+      if (dimensions.width === 0) {
         setDimensions({ width, height });
-      }, 50); // 50ms layout debounce
+        return;
+      }
+
+      timeoutId = setTimeout(() => {
+        frameId = requestAnimationFrame(() => {
+          setDimensions({ width, height });
+        });
+      }, 100); // 100ms layout debounce for less reflow during resize
     });
     observer.observe(containerRef.current);
     return () => {
       observer.disconnect();
+      cancelAnimationFrame(frameId);
       clearTimeout(timeoutId);
     };
-  }, []);
+  }, [dimensions.width]); // Need initial dependency for fast path check
 
   // Track cursor for tooltip (DOM DIRECT NO RERENDER OVERHEAD)
   useEffect(() => {
@@ -112,23 +303,25 @@ export default function GovernanceMap({
   }, [data, activeRegion, activeRegime]);
 
   const prevNodesRef = useRef<Map<string, {x: number, y: number}>>(new Map());
+  const trailsRef = useRef<Record<string, {x: number, y: number, year: number}[]>>({});
+
+  const getDynamicRadius = () => {
+    if (dimensions.width === 0 || dimensions.height === 0 || filteredData.length === 0) return 20;
+    const area = dimensions.width * dimensions.height;
+    // Calculate size that fits nicely into the viewport area
+    const idealRadius = Math.sqrt(area / (filteredData.length * 4.5)) / 2;
+    return Math.max(10, Math.min(28, idealRadius));
+  };
+  const dynamicRadius = getDynamicRadius();
 
   const nodes = useMemo(() => {
     if (dimensions.width === 0 || dimensions.height === 0 || isMobile) return [];
 
-    const paddingY = 40; // match render padding safely wrapping 40px diameter nodes
+    const paddingY = 40; // match render padding safely wrapping max node diameter
     const usableHeight = dimensions.height - paddingY * 2;
-    // Base radius increased for larger nodes (40px diameter)
-    const radius = 20; 
+    const radius = dynamicRadius; 
+ 
 
-    // Value fetcher for Y-Axis
-    const getYValue = (d: CountryCPI) => {
-      if (yAxis === 'CPI') return d.score;
-      if (yAxis === 'GDP') return d.gdpPpp;
-      if (yAxis === 'Happiness') return d.happiness;
-      return d.meaningfulLife;
-    };
-    
     const domain = yDomains[yAxis];
     
     // Grouping logic for X axis
@@ -150,9 +343,14 @@ export default function GovernanceMap({
       return dimensions.width / 2;
     };
     
+    const getYPos = (d: CountryCPI) => {
+       const val = Math.min(getYValue(d), domain.max);
+       let ratio = val / domain.max;
+       return paddingY + usableHeight * (1 - ratio);
+    };
+
     const simulationNodes: SimulationNode[] = filteredData.map((d) => {
-      const val = Math.min(getYValue(d), domain.max);
-      const targetY = paddingY + usableHeight * (1 - val / domain.max);
+      const targetY = getYPos(d);
       
       // Inherit previous position to avoid hard respawn popping between years
       const prev = prevNodesRef.current.get(d.id);
@@ -170,10 +368,7 @@ export default function GovernanceMap({
       .forceSimulation<SimulationNode>(simulationNodes)
       .force(
         'y',
-        d3.forceY<SimulationNode>((d) => {
-           const val = Math.min(getYValue(d), domain.max);
-           return paddingY + usableHeight * (1 - val / domain.max);
-        }).strength(1)
+        d3.forceY<SimulationNode>((d) => getYPos(d)).strength(1)
       )
       .force(
         'x', 
@@ -192,8 +387,30 @@ export default function GovernanceMap({
     simulationNodes.forEach(n => newPrevNodes.set(n.id, { x: n.x, y: n.y }));
     prevNodesRef.current = newPrevNodes;
 
+    // UPDATE TRAILS
+    if (currentYear && selectedNodeIds) {
+      selectedNodeIds.forEach(id => {
+         const node = simulationNodes.find(n => n.id === id);
+         if (!node) return;
+         if (!trailsRef.current[id]) trailsRef.current[id] = [];
+         
+         const trail = trailsRef.current[id];
+         const last = trail[trail.length - 1];
+         if (!last || last.year !== currentYear) {
+            trail.push({x: node.x, y: node.y, year: currentYear});
+         } else {
+            last.x = node.x;
+            last.y = node.y;
+         }
+      });
+      // cleanup unselected
+      Object.keys(trailsRef.current).forEach(id => {
+         if (!selectedNodeIds.includes(id)) delete trailsRef.current[id];
+      });
+    }
+
     return simulationNodes;
-  }, [filteredData, dimensions.width, dimensions.height, isMobile, groupBy, yAxis]);
+  }, [filteredData, dimensions.width, dimensions.height, isMobile, groupBy, yAxis, currentYear, selectedNodeIds, dynamicRadius]);
 
   const domain = yDomains[yAxis];
   const paddingY = 40; // Expand vertical stretch matching D3 math (safe for 40px diameter nodes)
@@ -231,101 +448,73 @@ export default function GovernanceMap({
 
       {isMobile ? (
         <>
-          {/* Mobile labels can be ignored or adapted, we leave data list */}
-          <div className="flex-1 w-full overflow-y-auto px-6 py-6 pb-20 custom-scrollbar mt-2 relative">
-            <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] dark:opacity-[0.04] pointer-events-none overflow-hidden select-none">
+          <div className="flex-1 w-full overflow-y-auto px-4 py-6 pb-24 custom-scrollbar mt-2 relative">
+            <div 
+              className="absolute inset-0 flex items-center justify-center opacity-[0.03] dark:opacity-[0.05] pointer-events-none overflow-hidden select-none fixed"
+            >
               <span className="text-[40vw] font-black tracking-tighter text-text-primary">{currentYear}</span>
             </div>
             
-            <div className="flex flex-col gap-3 relative z-10">
-            {filteredData
-              .filter(d => !normalizedSearch || d.name.toLowerCase().includes(normalizedSearch))
-              .sort((a,b) => b.score - a.score)
-              .map(country => (
-                <div key={country.id} className="flex flex-col p-3 rounded-xl bg-surface-panel border border-border-soft backdrop-blur-md shadow-lg mb-3">
-                  <div className="flex items-center justify-between">
-                     <div className="flex items-center gap-3">
-                       <img src={getFlagUrl(country.id)} alt={country.name} className="w-8 h-8 rounded-full border border-border-subtle object-cover" />
-                       <div className="flex flex-col">
-                         <span className="text-text-primary font-medium text-sm">{country.name}</span>
-                         <span className="text-text-tertiary text-[9px] uppercase tracking-wider">{country.regimeType}</span>
-                       </div>
-                     </div>
-                     <div className="flex flex-col items-end">
-                        <span className="text-lg font-bold" style={{ color: lerpColor(country.score) }}>{country.score}</span>
-                        <div className="flex items-center gap-1 mt-1">
-                          {country.trend === 'Rising' && <TrendingUp className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />}
-                          {country.trend === 'Sinking' && <TrendingDown className="w-3 h-3 text-rose-500 dark:text-rose-400" />}
-                          {country.trend === 'Stable' && <Minus className="w-3 h-3 text-text-tertiary" />}
+            <div className="flex flex-col gap-2 relative z-10 w-full mt-4">
+              <AnimatePresence>
+                {filteredData
+                  .filter(d => !normalizedSearch || d.name.toLowerCase().includes(normalizedSearch))
+                  .sort((a,b) => (getYValue(b) || 0) - (getYValue(a) || 0))
+                  .slice(0, 50)
+                  .map((country, index) => {
+                    const value = getYValue(country);
+                    const MaxVal = yDomains[yAxis].max;
+                    const percent = Math.min(100, Math.max(0, (value / MaxVal) * 100));
+                    
+                    return (
+                      <motion.div 
+                        layout
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                        key={country.id} 
+                        className="relative flex items-center p-1.5 rounded-full bg-surface-panel/40 border border-white/5 backdrop-blur-lg shadow-[0_2px_10px_rgba(0,0,0,0.1)] overflow-hidden"
+                      >
+                        <div 
+                          className="absolute top-0 left-0 h-full bg-brand-soft/10 pointer-events-none transition-all duration-1000 ease-linear origin-left"
+                          style={{ width: `${percent}%` }}
+                        >
+                           <div className="absolute top-0 right-0 w-1 h-full bg-brand-accent/30" />
                         </div>
-                     </div>
-                  </div>
-                  <div className="flex items-center justify-between mx-1 pt-3 mt-3 border-t border-border-subtle">
-                    <span className="text-[10px] text-text-tertiary font-mono flex flex-col items-center">
-                      <span className="uppercase text-[8px] text-text-secondary opacity-60 mb-1">GDP</span>
-                      ${(country.gdpPpp / 1000).toFixed(0)}k
-                    </span>
-                    <span className="text-[10px] text-text-tertiary font-mono flex flex-col items-center border-l border-border-subtle pl-4">
-                      <span className="uppercase text-[8px] text-text-secondary opacity-60 mb-1">Happy</span>
-                      {country.happiness.toFixed(1)}
-                    </span>
-                    <span className="text-[10px] text-text-tertiary font-mono flex flex-col items-center border-l border-border-subtle pl-4">
-                      <span className="uppercase text-[8px] text-text-secondary opacity-60 mb-1">Meaning</span>
-                      {country.meaningfulLife}%
-                    </span>
-                  </div>
-                </div>
-              ))}
-            
-            {/* Mobile Data Sources */}
-            <div className="mt-6 mb-8 p-5 rounded-xl bg-surface-canvas border border-border-soft">
-              <h4 className="text-[10px] uppercase tracking-[0.2em] font-bold text-text-secondary mb-3">Methodology</h4>
-              <p className="text-[8px] text-text-tertiary mb-4 leading-relaxed border-b border-border-subtle pb-3">
-                * Data is composite-normalized across peer-reviewed methodologies to minimize distinct bounds bias.
-              </p>
-              <div className="flex flex-col gap-4 text-[9px] text-text-tertiary font-mono">
-                <div>
-                  <span className="text-brand-accent opacity-80 uppercase tracking-widest font-bold block mb-1">Corruption & Regime</span>
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 leading-relaxed">
-                    <a href="https://v-dem.net/" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">V-Dem Institute (v14)</a>
-                    <span className="text-border-strong">·</span>
-                    <a href="https://info.worldbank.org/governance/wgi/" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">World Bank (WGI)</a>
-                    <span className="text-border-strong">·</span>
-                    <a href="https://www.transparency.org/en/cpi" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">Transparency Int. (CPI)</a>
-                    <span className="text-border-strong">·</span>
-                    <a href="https://www.eiu.com/n/campaigns/democracy-index-2023/" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">EIU Index</a>
-                  </div>
-                </div>
-                <div>
-                  <span className="text-brand-accent opacity-80 uppercase tracking-widest font-bold block mb-1">Macroeconomics</span>
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 leading-relaxed">
-                    <a href="https://www.rug.nl/ggdc/productivity/pwt/" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">Penn World Table (10.0)</a>
-                    <span className="text-border-strong">·</span>
-                    <a href="https://www.imf.org/en/Publications/WEO" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">IMF WEO</a>
-                    <span className="text-border-strong">·</span>
-                    <a href="https://www.worldbank.org/en/programs/icp" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">World Bank (ICP)</a>
-                  </div>
-                </div>
-                <div>
-                  <span className="text-brand-accent opacity-80 uppercase tracking-widest font-bold block mb-1">Wellbeing & Affect</span>
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 leading-relaxed">
-                    <a href="https://www.worldvaluessurvey.org/" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">World Values Survey (WVS-7)</a>
-                    <span className="text-border-strong">·</span>
-                    <a href="https://wellbeing.hmc.ox.ac.uk/" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">Oxford Wellbeing</a>
-                    <span className="text-border-strong">·</span>
-                    <a href="https://news.gallup.com/poll/105226/world-poll-methodology.aspx" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">Gallup Poll</a>
-                  </div>
-                </div>
-              </div>
+                        
+                        <div className="flex items-center justify-between relative z-10 w-full pl-2 pr-3">
+                           <div className="flex items-center gap-2">
+                             <span className="text-[9px] font-mono text-text-tertiary font-bold w-4 text-right shrink-0">{index + 1}.</span>
+                             <img src={getFlagUrl(country.id)} alt={country.name} className="w-5 h-5 rounded-full border border-border-subtle object-cover shrink-0" />
+                             <span className="text-text-primary font-bold text-[10px] tracking-wide truncate max-w-[120px] ml-1">{country.name}</span>
+                           </div>
+                           <div className="flex items-center shrink-0">
+                              <span className="text-xs font-bold font-mono tracking-tighter" style={{ color: lerpColor(country.prosperityScore || country.score) }}>
+                                 {yDomains[yAxis].format(value)}
+                              </span>
+                           </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+              </AnimatePresence>
             </div>
+            
+            {/* End Mobile Race */}
           </div>
-        </div>
         </>
       ) : (
         <div className="absolute inset-0 flex">
           
-          {/* GIANT YEAR WATERMARK */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-hidden select-none opacity-[0.02] dark:opacity-[0.04]">
+          {/* GIANT YEAR WATERMARK (Partially Masked) */}
+          <div 
+            className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-hidden select-none opacity-[0.05] dark:opacity-[0.08]"
+            style={{
+              maskImage: 'linear-gradient(to bottom, transparent 0%, black 30%, black 70%, transparent 100%)',
+              WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 30%, black 70%, transparent 100%)'
+            }}
+          >
             <span className="text-[30vw] font-black tracking-tighter text-text-primary drop-shadow-[0_0_20px_var(--border-strong)] transition-all duration-1000 ease-in-out">
               {currentYear}
             </span>
@@ -354,27 +543,71 @@ export default function GovernanceMap({
           </div>
 
           <div className="flex-1 relative overflow-hidden">
-             {/* Background Lines */}
-            <div className="absolute inset-0 flex justify-around opacity-10 pointer-events-none border-l border-border-soft pl-4 sm:pl-0">
-              <div className="w-px h-full bg-gradient-to-b from-transparent via-text-primary to-transparent"></div>
-              <div className="w-px h-full bg-gradient-to-b from-transparent via-text-primary to-transparent"></div>
-              <div className="w-px h-full bg-gradient-to-b from-transparent via-text-primary to-transparent"></div>
-              <div className="w-px h-full bg-gradient-to-b from-transparent via-text-primary to-transparent"></div>
+             {/* Background Lines and Ambient Glow */}
+            <div className="absolute inset-0 flex justify-around opacity-15 pointer-events-none border-l border-border-soft pl-4 sm:pl-0">
+              <div className="w-px h-full bg-gradient-to-b from-transparent via-text-tertiary to-transparent relative"></div>
+              <div className="w-px h-full bg-gradient-to-b from-transparent via-text-tertiary to-transparent relative"></div>
+              <div className="w-px h-full bg-gradient-to-b from-transparent via-text-tertiary to-transparent relative"></div>
+              <div className="w-px h-full bg-gradient-to-b from-transparent via-text-tertiary to-transparent relative"></div>
             </div>
+            
+            {/* Ambient Radial Mesh Gradient Behind Map */}
+            <div className="absolute inset-0 pointer-events-none opacity-20 dark:opacity-10" style={{
+              background: 'radial-gradient(circle at 50% 50%, var(--color-brand-accent) 0%, transparent 60%)',
+              mixBlendMode: 'screen',
+              filter: 'blur(100px)'
+            }} />
 
-            {/* Threshold Line */}
+            {/* Threshold Lines */}
             {dimensions.height > 0 && (
-               <div 
-                 className="absolute w-full flex items-center pl-8 opacity-40 z-0 pointer-events-none transition-all duration-1000 ease-in-out"
-                 style={{ top: paddingY + usableHeight * 0.5 }}
-               >
-                 <div className="flex-1 h-[2px] bg-gradient-to-r from-transparent via-brand-accent to-transparent relative shadow-[0_0_10px_var(--brand-glow)]">
-                   <span className="absolute -top-4 right-4 text-[9px] uppercase tracking-[0.2em] text-brand-accent bg-surface-canvas px-3 font-medium border border-brand-soft rounded-full animate-pulse shadow-[0_0_5px_var(--brand-glow)]">
-                     Global Median Threshold
-                   </span>
+               <>
+                 <div className="absolute w-full flex items-center pl-8 opacity-40 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ top: paddingY + usableHeight * (1 - thresholds.top5 / domain.max) }}>
+                   <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-[#4ade80] to-transparent relative">
+                     <span className="absolute -top-4 right-4 text-[9px] uppercase tracking-[0.2em] text-[#4ade80] bg-surface-canvas px-3 font-medium border border-[#4ade80]/30 rounded-full">95TH PERCENTILE</span>
+                   </div>
                  </div>
-               </div>
+                 <div className="absolute w-full flex items-center pl-8 opacity-40 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ top: paddingY + usableHeight * (1 - thresholds.median / domain.max) }}>
+                   <div className="flex-1 h-[2px] bg-gradient-to-r from-transparent via-brand-accent to-transparent relative shadow-[0_0_10px_var(--brand-glow)]">
+                     <span className="absolute -top-4 right-4 text-[9px] uppercase tracking-[0.2em] text-brand-accent bg-surface-canvas px-3 font-medium border border-brand-soft rounded-full animate-pulse shadow-[0_0_5px_var(--brand-glow)]">
+                       Global Median
+                     </span>
+                   </div>
+                 </div>
+                 <div className="absolute w-full flex items-center pl-8 opacity-40 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ top: paddingY + usableHeight * (1 - thresholds.bottom5 / domain.max) }}>
+                   <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-[#fb7185] to-transparent relative">
+                     <span className="absolute -top-4 right-4 text-[9px] uppercase tracking-[0.2em] text-[#fb7185] bg-surface-canvas px-3 font-medium border border-[#fb7185]/30 rounded-full">5TH PERCENTILE</span>
+                   </div>
+                 </div>
+               </>
             )}
+
+          {/* TRAILS LAYER (Tracking Selected Nodes) */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible">
+             {Object.entries(trailsRef.current).map(([id, rawTrail]) => {
+                const trail = rawTrail as {x: number, y: number, year: number}[];
+                if (trail.length < 2) return null;
+                const pathData = trail.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`).join(' ');
+                
+                // Get node color for trail
+                const nodeData = data.find(d => d.id === id);
+                const color = nodeData ? lerpColor(nodeData.prosperityScore || nodeData.score) : '#00f2ff';
+                
+                return (
+                  <path 
+                     key={`trail-${id}`} 
+                     d={pathData} 
+                     fill="none" 
+                     stroke={color} 
+                     strokeWidth="3" 
+                     strokeDasharray="6 6"
+                     strokeLinecap="round"
+                     strokeLinejoin="round" 
+                     opacity="0.5"
+                     className="transition-all duration-1000 ease-linear drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]"
+                  />
+                );
+             })}
+          </svg>
 
           {nodes.map((node) => {
             const isMatched = normalizedSearch && node.name.toLowerCase().includes(normalizedSearch);
@@ -389,78 +622,27 @@ export default function GovernanceMap({
             const isUnhoveredRegion = hoveredRegion && hoveredRegion !== 'All' && node.region !== hoveredRegion;
             const isUnhoveredRegime = hoveredRegime && hoveredRegime !== 'All' && node.regimeType !== hoveredRegime;
             
-            const isHighlighted = isSelected || isMatched || isHovered || isRegionHovered || isRegimeHovered;
-            
-            let opacity = 1;
-            if (isSelected) opacity = 1;
-            else if (isUnmatched) opacity = 0.15;
-            else if (hoveredNode && !isHovered && !isMatched) opacity = 0.4;
-            else if ((isUnhoveredRegion || isUnhoveredRegime) && !isMatched) opacity = 0.25;
-
-            const yOffset = (node.score % 3) * 2;
-            
-            let currentScale = 1;
-            if (isSelected) currentScale = 1.4;
-            else if (isMatched) currentScale = 1.3;
-            else if (isHovered) currentScale = 1.5;
-            else if (isRegionHovered || isRegimeHovered) currentScale = 1.15;
-
-            let currentShadow = 'none';
-            if (isSelected) currentShadow = `0 0 30px ${lerpColor(node.score)}, inset 0 0 15px rgba(255,255,255,0.7)`;
-            else if (isMatched) currentShadow = '0 0 20px rgba(0, 242, 255, 0.8)';
-            else if (isHovered) currentShadow = `0 0 15px ${lerpColor(node.score)}`;
-            else if (isRegionHovered || isRegimeHovered) currentShadow = `0 0 15px ${lerpColor(node.score)}`;
+            const hasSelection = selectedNodeIds.length > 0;
             
             return (
-              <motion.div
+              <MapNode
                 key={node.id}
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ 
-                    opacity, 
-                    scale: currentScale,
-                    x: node.x - 20, 
-                    y: node.y - 20 
-                }}
-                transition={{ duration: 0.8, type: "spring", bounce: 0.2 }}
-                className={`absolute flex items-center justify-center cursor-pointer transition-all duration-500 ${
-                  isSelected ? 'z-[60]' : isMatched ? 'z-50' : isHovered ? 'z-40' : (isRegionHovered || isRegimeHovered) ? 'z-30' : 'z-10'
-                }`}
-                onMouseEnter={() => setHoveredNode(node)}
-                onMouseLeave={() => setHoveredNode(null)}
-                onClick={() => onNodeClick(node.id)}
-              >
-                 <div
-                   className="relative"
-                   style={{
-                     animation: `float-gentle ${4 + (node.score % 3)}s ease-in-out infinite`,
-                     '--float-offset': `${-4 + yOffset}px`
-                   } as React.CSSProperties}
-                 >
-                    <div 
-                      className={`w-10 h-10 rounded-full overflow-hidden border bg-[#050505] flex items-center justify-center relative transition-colors duration-500
-                        ${isSelected ? 'border-white' : isMatched ? 'border-[#00f2ff]' : 'border-white/10'}
-                      `}
-                      style={{ 
-                        borderColor: isSelected ? '#fff' : isMatched ? '#00f2ff' : isHighlighted ? '#fff' : lerpColor(node.score),
-                        boxShadow: currentShadow,
-                        borderWidth: isHighlighted ? '2px' : '1px',
-                        filter: isHighlighted && !isHovered ? 'brightness(1.2)' : 'brightness(1)',
-                      }}
-                    >
-                      <img
-                        src={getFlagUrl(node.id)}
-                        alt={`${node.name} Flag`}
-                        className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none"
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center z-10 pointer-events-none rounded-full transition-colors">
-                         <span className="text-[10px] font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,1)] leading-none tracking-widest">{node.id}</span>
-                         {node.trend === 'Rising' && <TrendingUp className="w-3.5 h-3.5 text-[#4ade80] drop-shadow-[0_1px_3px_rgba(0,0,0,1)] mt-[1px] stroke-[3]" />}
-                         {node.trend === 'Sinking' && <TrendingDown className="w-3.5 h-3.5 text-[#fb7185] drop-shadow-[0_1px_3px_rgba(0,0,0,1)] mt-[1px] stroke-[3]" />}
-                      </div>
-                    </div>
-                 </div>
-              </motion.div>
+                node={node}
+                radius={dynamicRadius}
+                isMatched={isMatched}
+                isUnmatched={isUnmatched}
+                isHovered={isHovered}
+                isSelected={isSelected}
+                isRegionHovered={isRegionHovered}
+                isRegimeHovered={isRegimeHovered}
+                isUnhoveredRegion={isUnhoveredRegion}
+                isUnhoveredRegime={isUnhoveredRegime}
+                hasSelection={hasSelection}
+                isPlaying={isPlaying}
+                onMouseEnter={handleNodeMouseEnter}
+                onMouseLeave={handleNodeMouseLeave}
+                onClick={handleNodeClickBounded}
+              />
             );
           })}
 
@@ -480,12 +662,11 @@ export default function GovernanceMap({
                     <p className="text-[10px] text-white/50 uppercase tracking-widest leading-none">{hoveredNode.regimeType}</p>
                   </div>
                   <div className="flex flex-col items-end">
-                    <span className="text-[9px] text-white/40 uppercase font-bold tracking-widest mb-1 leading-none">Corruption</span>
+                    <span className="text-[9px] text-white/40 uppercase font-bold tracking-widest mb-1 leading-none">Prosperity</span>
                     <div 
-                      className="text-white px-2 py-1 rounded text-xs font-bold border leading-none"
-                      style={{ backgroundColor: `${lerpColor(hoveredNode.score)}33`, borderColor: lerpColor(hoveredNode.score) }}
+                      className="text-white px-2 py-1 rounded text-xs font-bold border leading-none bg-[#00f2ff]/20 border-[#00f2ff]"
                     >
-                      {hoveredNode.score}
+                      {hoveredNode.prosperityScore?.toFixed(0)}
                     </div>
                   </div>
                 </div>
@@ -493,23 +674,22 @@ export default function GovernanceMap({
                 <div className="grid grid-cols-3 gap-2 border-t border-white/10 pt-3 mt-3">
                   <div className="flex flex-col">
                     <span className="text-[8px] text-white/40 uppercase tracking-wider mb-0.5 font-bold">GDP (PPP)</span>
-                    <span className="text-xs text-white font-mono">${(hoveredNode.gdpPpp / 1000).toFixed(1)}k</span>
+                    <span className="text-xs text-white font-mono">${(hoveredNode.gdpPpp / 1000).toFixed(0)}k</span>
                   </div>
                   <div className="flex flex-col border-l border-white/10 pl-2">
-                    <span className="text-[8px] text-white/40 uppercase tracking-wider mb-0.5 font-bold">Happiness</span>
-                    <span className="text-xs text-[#00f2ff] font-mono">{hoveredNode.happiness.toFixed(1)}</span>
+                    <span className="text-[8px] text-white/40 uppercase tracking-wider mb-0.5 font-bold">CPI</span>
+                    <span className="text-xs text-[#00f2ff] font-mono">{hoveredNode.score}</span>
                   </div>
                   <div className="flex flex-col border-l border-white/10 pl-2">
-                    <span className="text-[8px] text-white/40 uppercase tracking-wider mb-0.5 font-bold">Meaningful</span>
-                    <span className="text-xs text-[#4ade80] font-mono">{hoveredNode.meaningfulLife}%</span>
+                    <span className="text-[8px] text-white/40 uppercase tracking-wider mb-0.5 font-bold">Inflation</span>
+                    <span className="text-xs text-[#4ade80] font-mono">{hoveredNode.inflation}%</span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2 border-t border-white/10 pt-3 mt-3">
-                  <div 
-                    className="w-2 h-2 rounded-full" 
-                    style={{ backgroundColor: hoveredNode.trend === 'Rising' ? '#4ade80' : hoveredNode.trend === 'Sinking' ? '#fb7185' : '#a1a1aa' }}
-                  ></div>
+                  {hoveredNode.trend === 'Rising' && <TrendingUp className="w-3.5 h-3.5 text-[#4ade80]" />}
+                  {hoveredNode.trend === 'Sinking' && <TrendingDown className="w-3.5 h-3.5 text-[#fb7185]" />}
+                  {hoveredNode.trend === 'Stable' && <Minus className="w-3.5 h-3.5 text-white/50" />}
                   <span 
                     className="text-[10px] uppercase tracking-tighter font-bold"
                     style={{ color: hoveredNode.trend === 'Rising' ? '#4ade80' : hoveredNode.trend === 'Sinking' ? '#fb7185' : '#a1a1aa' }}
