@@ -40,7 +40,7 @@ const MapNode = memo(({
   
   if (isSelected) opacity = 1;
   else if (isUnmatched) { opacity = 0.1; grayscale = true; }
-  else if (hasSelection && !isSelected) { opacity = 0.1; grayscale = true; }
+  else if (hasSelection && !isSelected) { opacity = 0.45; grayscale = true; }
   else if (!isHovered && !isMatched && (isUnhoveredRegion || isUnhoveredRegime)) opacity = 0.15;
   else if (!isHovered && !isMatched && (opacity === 1)) opacity = 0.8; // Default fade for non-highlighted
 
@@ -51,7 +51,7 @@ const MapNode = memo(({
   else if (isMatched) currentScale = 1.3;
   else if (isHovered) currentScale = 1.5;
   else if (isRegionHovered || isRegimeHovered) currentScale = 1.15;
-  else if (hasSelection && !isSelected) currentScale = 0.7;
+  else if (hasSelection && !isSelected) currentScale = 0.6; // slightly less than selected, but make them visible (0.6 instead of 0.7)
 
   const colorVal = node.prosperityScore || node.score;
 
@@ -59,14 +59,18 @@ const MapNode = memo(({
   const prevValRef = useRef(colorVal);
 
   useEffect(() => {
-     if (Math.abs(colorVal - prevValRef.current) >= 3) {
-        setPulseDir(colorVal > prevValRef.current ? 'Up' : 'Down');
-        const t = setTimeout(() => setPulseDir(null), 850);
+     if (colorVal === prevValRef.current) return;
+     const diff = colorVal - prevValRef.current;
+     if (Math.abs(diff) >= 2.0 && isPlaying) {
+        setPulseDir(diff > 0 ? 'Up' : 'Down');
+        const t = setTimeout(() => setPulseDir(null), 1000);
         prevValRef.current = colorVal;
         return () => clearTimeout(t);
+     } else {
+        prevValRef.current = colorVal;
+        setPulseDir(null);
      }
-     prevValRef.current = colorVal;
-  }, [colorVal]);
+  }, [colorVal, isPlaying]);
 
   let currentShadow = 'none';
   if (isSelected) currentShadow = `0 0 30px ${lerpColor(colorVal)}, inset 0 0 15px rgba(255,255,255,0.7)`;
@@ -83,28 +87,22 @@ const MapNode = memo(({
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: currentScale }}
+      initial={false}
       animate={{ 
           opacity, 
           scale: currentScale,
           x: node.x - radius, 
           y: node.y - radius 
       }}
-      transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-      className={`absolute flex items-center justify-center cursor-pointer transition-all duration-500 z-10 ${
+      transition={trans}
+      className={`absolute flex items-center justify-center cursor-pointer z-10 ${
         isSelected ? '!z-[60]' : isMatched ? '!z-50' : isHovered ? '!z-40' : (isRegionHovered || isRegimeHovered) ? '!z-30' : ''
       } ${grayscale ? 'grayscale brightness-75' : ''}`}
       onMouseEnter={() => onMouseEnter(node)}
       onMouseLeave={onMouseLeave}
       onClick={() => onClick(node.id)}
     >
-       <div
-         className="relative"
-         style={{
-           animation: `float-gentle ${4 + (node.score % 3)}s ease-in-out infinite`,
-           '--float-offset': `${-4 + yOffset}px`
-         } as React.CSSProperties}
-       >
+       <div className="relative">
           <div 
             className={`rounded-full overflow-hidden border bg-[#050505] flex items-center justify-center relative transition-colors duration-500
               ${isSelected ? 'border-white' : isMatched ? 'border-[#00f2ff]' : 'border-white/10'}
@@ -127,12 +125,10 @@ const MapNode = memo(({
             <div className={`absolute inset-0 bg-black/40 flex flex-col items-center justify-center z-10 pointer-events-none rounded-full transition-opacity duration-300 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
                <span className="text-[10px] font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,1)] leading-none tracking-widest">{node.id}</span>
             </div>
-            {/* Standalone Pulse Indicator */}
+            {/* Standalone Pulse Indicator - Just the arrow! */}
             <div className={`absolute inset-0 flex items-center justify-center z-20 pointer-events-none transition-opacity duration-300 ${pulseDir && !isHovered ? 'opacity-100' : 'opacity-0'}`}>
-              <div className="bg-black/60 backdrop-blur-md rounded-full p-0.5 shadow-[0_0_10px_rgba(0,0,0,0.5)]">
-                {pulseDir === 'Up' && <TrendingUp className="w-4 h-4 text-[#4ade80] animate-bounce stroke-[3]" />}
-                {pulseDir === 'Down' && <TrendingDown className="w-4 h-4 text-[#fb7185] animate-bounce stroke-[3]" />}
-              </div>
+               {pulseDir === 'Up' && <TrendingUp className="w-5 h-5 text-[#4ade80] drop-shadow-[0_4px_6px_rgba(0,0,0,0.9)] stroke-[4]" />}
+               {pulseDir === 'Down' && <TrendingDown className="w-5 h-5 text-[#fb7185] drop-shadow-[0_4px_6px_rgba(0,0,0,0.9)] stroke-[4]" />}
             </div>
           </div>
        </div>
@@ -173,11 +169,11 @@ const yDomains: Record<YAxisMetric, { max: number, ticks: number[], format: (v: 
   GDP: { max: 120000, ticks: [120000, 96000, 72000, 48000, 24000, 0], format: (v: number) => v === 0 ? "$0" : `$${Math.round(v/1000)}k` },
   Happiness: { max: 10, ticks: [10, 8, 6, 4, 2, 0], format: (v: number) => v.toString() },
   MeaningfulLife: { max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => `${v}%` },
-  Inflation: { max: 50, ticks: [50, 40, 30, 20, 10, 0], format: (v: number) => `${v}%` },
-  Unemployment: { max: 30, ticks: [30, 24, 18, 12, 6, 0], format: (v: number) => `${v}%` },
-  Education: { max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => v.toString() },
-  LifeExpectancy: { max: 90, ticks: [90, 75, 60, 45, 30, 15], format: (v: number) => v.toString() },
-  PressFreedom: { max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => v.toString() },
+  Inflation: { max: 50, ticks: [50, 40, 30, 20, 10, 0], format: (v: number) => `${Math.round(v)}%` },
+  Unemployment: { max: 30, ticks: [30, 24, 18, 12, 6, 0], format: (v: number) => `${Math.round(v)}%` },
+  Education: { max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => Math.round(v).toString() },
+  LifeExpectancy: { max: 90, ticks: [90, 75, 60, 45, 30, 15], format: (v: number) => Math.round(v).toString() },
+  PressFreedom: { max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => Math.round(v).toString() },
 };
 
 export default function GovernanceMap({ 
@@ -227,7 +223,14 @@ export default function GovernanceMap({
   }, [data, yAxis]);
 
   // Responsive: track if mobile
-  const isMobile = dimensions.width < 768 && dimensions.width > 0;
+  // We use window.innerWidth instead of container dimensions since the map container is smaller than viewport due to the sidebar
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleNodeMouseEnter = useCallback((node: SimulationNode) => {
     setHoveredNode(node);
@@ -309,43 +312,55 @@ export default function GovernanceMap({
     if (dimensions.width === 0 || dimensions.height === 0 || filteredData.length === 0) return 20;
     const area = dimensions.width * dimensions.height;
     // Calculate size that fits nicely into the viewport area
-    const idealRadius = Math.sqrt(area / (filteredData.length * 4.5)) / 2;
-    return Math.max(10, Math.min(28, idealRadius));
+    let idealRadius = Math.sqrt(area / (filteredData.length * 4.5)) / 2;
+    if (groupBy !== 'None') {
+       idealRadius *= 0.65;
+    }
+    return Math.max(12, Math.min(28, idealRadius));
   };
   const dynamicRadius = getDynamicRadius();
+
+  const domain = yDomains[yAxis];
+  const paddingY = 40;
+  const usableHeight = dimensions.height - paddingY * 2;
+  const invertedAxis = ['Inflation', 'Unemployment'].includes(yAxis);
+
+  const getRatio = useCallback((val: number) => {
+    let ratio = val / domain.max;
+    if (invertedAxis) ratio = 1 - ratio;
+    return ratio;
+  }, [domain.max, invertedAxis]);
 
   const nodes = useMemo(() => {
     if (dimensions.width === 0 || dimensions.height === 0 || isMobile) return [];
 
-    const paddingY = 40; // match render padding safely wrapping max node diameter
-    const usableHeight = dimensions.height - paddingY * 2;
     const radius = dynamicRadius; 
  
 
-    const domain = yDomains[yAxis];
-    
     // Grouping logic for X axis
+    const plotWidth = dimensions.width - 80; // 80px reserved for the left Y-axis
+    
     const getTargetX = (d: CountryCPI) => {
       if (groupBy === 'Region') {
         const regions = REGIONS.filter(r => r !== 'All'); // 5 regions
         const index = regions.indexOf(d.region);
-        if (index === -1) return dimensions.width / 2;
-        const columnWidth = dimensions.width / regions.length;
+        if (index === -1) return plotWidth / 2;
+        const columnWidth = plotWidth / regions.length;
         return (index * columnWidth) + (columnWidth / 2);
       }
       if (groupBy === 'Regime') {
         const regimes = REGIMES.filter(r => r !== 'All'); // 4 regimes
         const index = regimes.indexOf(d.regimeType);
-        if (index === -1) return dimensions.width / 2;
-        const columnWidth = dimensions.width / regimes.length;
+        if (index === -1) return plotWidth / 2;
+        const columnWidth = plotWidth / regimes.length;
         return (index * columnWidth) + (columnWidth / 2);
       }
-      return dimensions.width / 2;
+      return plotWidth / 2;
     };
     
     const getYPos = (d: CountryCPI) => {
        const val = Math.min(getYValue(d), domain.max);
-       let ratio = val / domain.max;
+       const ratio = getRatio(val);
        return paddingY + usableHeight * (1 - ratio);
     };
 
@@ -357,7 +372,7 @@ export default function GovernanceMap({
       
       return {
         ...d,
-        x: prev ? prev.x : dimensions.width / 2, 
+        x: prev ? prev.x : plotWidth / 2, 
         y: prev ? prev.y : targetY,
         vy: 0,
         vx: 0,
@@ -381,6 +396,12 @@ export default function GovernanceMap({
     for (let i = 0; i < 150; ++i) {
       simulation.tick();
     }
+    
+    // Constrain nodes strictly into bounds after simulation
+    simulationNodes.forEach(n => {
+      n.x = Math.max(radius + 5, Math.min(plotWidth - radius - 5, n.x));
+      n.y = Math.max(radius, Math.min(usableHeight - radius, n.y));
+    });
 
     // Save final positions for the next render timeline increment
     const newPrevNodes = new Map();
@@ -410,11 +431,7 @@ export default function GovernanceMap({
     }
 
     return simulationNodes;
-  }, [filteredData, dimensions.width, dimensions.height, isMobile, groupBy, yAxis, currentYear, selectedNodeIds, dynamicRadius]);
-
-  const domain = yDomains[yAxis];
-  const paddingY = 40; // Expand vertical stretch matching D3 math (safe for 40px diameter nodes)
-  const usableHeight = dimensions.height - paddingY * 2;
+  }, [filteredData, dimensions.width, dimensions.height, isMobile, groupBy, yAxis, currentYear, selectedNodeIds, dynamicRadius, getRatio, usableHeight]);
 
   // Render group labels at the top of the map when grouped
   const renderGroupLabels = () => {
@@ -455,7 +472,7 @@ export default function GovernanceMap({
               <span className="text-[40vw] font-black tracking-tighter text-text-primary">{currentYear}</span>
             </div>
             
-            <div className="flex flex-col gap-2 relative z-10 w-full mt-4">
+            <div className="flex flex-col gap-1 relative z-10 w-full mt-2">
               <AnimatePresence>
                 {filteredData
                   .filter(d => !normalizedSearch || d.name.toLowerCase().includes(normalizedSearch))
@@ -474,23 +491,23 @@ export default function GovernanceMap({
                         exit={{ opacity: 0, scale: 0.9 }}
                         transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
                         key={country.id} 
-                        className="relative flex items-center p-1.5 rounded-full bg-surface-panel/40 border border-white/5 backdrop-blur-lg shadow-[0_2px_10px_rgba(0,0,0,0.1)] overflow-hidden"
+                        className="relative flex items-center p-1 rounded-full bg-white/[0.03] dark:bg-white/[0.02] border border-white/5 backdrop-blur-md overflow-hidden"
                       >
                         <div 
-                          className="absolute top-0 left-0 h-full bg-brand-soft/10 pointer-events-none transition-all duration-1000 ease-linear origin-left"
+                          className="absolute top-0 left-0 h-full bg-brand-soft/20 pointer-events-none transition-all duration-1000 ease-linear origin-left"
                           style={{ width: `${percent}%` }}
                         >
-                           <div className="absolute top-0 right-0 w-1 h-full bg-brand-accent/30" />
+                           <div className="absolute top-0 right-0 w-[2px] h-full bg-brand-accent/50 shadow-[0_0_8px_var(--brand-glow)]" />
                         </div>
                         
                         <div className="flex items-center justify-between relative z-10 w-full pl-2 pr-3">
                            <div className="flex items-center gap-2">
-                             <span className="text-[9px] font-mono text-text-tertiary font-bold w-4 text-right shrink-0">{index + 1}.</span>
-                             <img src={getFlagUrl(country.id)} alt={country.name} className="w-5 h-5 rounded-full border border-border-subtle object-cover shrink-0" />
-                             <span className="text-text-primary font-bold text-[10px] tracking-wide truncate max-w-[120px] ml-1">{country.name}</span>
+                             <span className="text-[8px] font-mono text-text-tertiary w-3 text-right shrink-0 opacity-50">{index + 1}.</span>
+                             <img src={getFlagUrl(country.id)} alt={country.name} className="w-4 h-4 rounded-full border border-border-subtle object-cover shrink-0 opacity-90" />
+                             <span className="text-text-primary font-medium text-[9px] tracking-wide truncate max-w-[140px] drop-shadow-md">{country.name}</span>
                            </div>
                            <div className="flex items-center shrink-0">
-                              <span className="text-xs font-bold font-mono tracking-tighter" style={{ color: lerpColor(country.prosperityScore || country.score) }}>
+                              <span className="text-[10px] font-bold font-mono tracking-tighter drop-shadow-md" style={{ color: lerpColor(country.prosperityScore || country.score) }}>
                                  {yDomains[yAxis].format(value)}
                               </span>
                            </div>
@@ -522,12 +539,12 @@ export default function GovernanceMap({
 
           {renderGroupLabels()}
           {/* Vertical Y-Axis Integrated dynamically to share padding math */}
-          <div className="w-16 sm:w-20 shrink-0 h-full border-r border-border-subtle relative z-10 bg-surface-canvas">
+          <div className="w-16 sm:w-20 shrink-0 h-full border-r border-border-subtle relative z-10 bg-surface-canvas flex flex-col justify-center">
              {dimensions.height > 0 && domain.ticks.map((tick, i) => (
                <div 
                  key={tick} 
                  className="absolute w-full flex justify-center -translate-y-1/2 text-[10px] font-mono text-text-tertiary"
-                 style={{ top: paddingY + usableHeight * (1 - tick / domain.max) }}
+                 style={{ top: paddingY + usableHeight * (1 - getRatio(tick)) }}
                >
                  <span className={i === Math.floor(domain.ticks.length/2) ? "text-brand-accent font-bold tracking-widest text-xs opacity-80" : ""}>
                    {domain.format(tick)}
@@ -536,8 +553,8 @@ export default function GovernanceMap({
              ))}
              {dimensions.height > 0 && (
                <>
-                 <div className="absolute w-full text-center text-[10px] text-text-tertiary font-mono bottom-4 hidden sm:block uppercase tracking-widest">{yAxis === 'CPI' ? 'Corrupt' : 'Low'}</div>
-                 <div className="absolute w-full text-center text-[10px] text-text-tertiary font-mono top-4 hidden sm:block uppercase tracking-widest">{yAxis === 'CPI' ? 'Clean' : 'High'}</div>
+                 <div className="absolute w-full text-center text-[10px] text-text-tertiary font-mono bottom-4 hidden sm:block uppercase tracking-widest opacity-60">{yAxis === 'CPI' ? 'Corrupt' : invertedAxis ? 'Bad' : 'Low'}</div>
+                 <div className="absolute w-full text-center text-[10px] text-text-tertiary font-mono top-4 hidden sm:block uppercase tracking-widest opacity-60">{yAxis === 'CPI' ? 'Clean' : invertedAxis ? 'Good' : 'High'}</div>
                </>
              )}
           </div>
@@ -561,19 +578,19 @@ export default function GovernanceMap({
             {/* Threshold Lines */}
             {dimensions.height > 0 && (
                <>
-                 <div className="absolute w-full flex items-center pl-8 opacity-40 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ top: paddingY + usableHeight * (1 - thresholds.top5 / domain.max) }}>
+                 <div className="absolute w-[80%] left-[10%] flex items-center opacity-40 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ top: paddingY + usableHeight * (1 - getRatio(thresholds.top5)) }}>
                    <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-[#4ade80] to-transparent relative">
                      <span className="absolute -top-4 right-4 text-[9px] uppercase tracking-[0.2em] text-[#4ade80] bg-surface-canvas px-3 font-medium border border-[#4ade80]/30 rounded-full">95TH PERCENTILE</span>
                    </div>
                  </div>
-                 <div className="absolute w-full flex items-center pl-8 opacity-40 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ top: paddingY + usableHeight * (1 - thresholds.median / domain.max) }}>
-                   <div className="flex-1 h-[2px] bg-gradient-to-r from-transparent via-brand-accent to-transparent relative shadow-[0_0_10px_var(--brand-glow)]">
-                     <span className="absolute -top-4 right-4 text-[9px] uppercase tracking-[0.2em] text-brand-accent bg-surface-canvas px-3 font-medium border border-brand-soft rounded-full animate-pulse shadow-[0_0_5px_var(--brand-glow)]">
+                 <div className="absolute w-1/2 left-1/4 flex items-center opacity-40 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ top: paddingY + usableHeight * (1 - getRatio(thresholds.median)) }}>
+                   <div className="flex-1 h-[2px] bg-brand-accent/30 relative shadow-[0_0_10px_var(--brand-glow)]">
+                     <span className="absolute left-1/2 -top-4 -translate-x-1/2 text-[9px] uppercase tracking-[0.2em] text-brand-accent bg-surface-canvas px-3 font-medium border border-brand-soft rounded-full shadow-[0_0_5px_var(--brand-glow)] whitespace-nowrap">
                        Global Median
                      </span>
                    </div>
                  </div>
-                 <div className="absolute w-full flex items-center pl-8 opacity-40 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ top: paddingY + usableHeight * (1 - thresholds.bottom5 / domain.max) }}>
+                 <div className="absolute w-[80%] left-[10%] flex items-center opacity-40 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ top: paddingY + usableHeight * (1 - getRatio(thresholds.bottom5)) }}>
                    <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-[#fb7185] to-transparent relative">
                      <span className="absolute -top-4 right-4 text-[9px] uppercase tracking-[0.2em] text-[#fb7185] bg-surface-canvas px-3 font-medium border border-[#fb7185]/30 rounded-full">5TH PERCENTILE</span>
                    </div>
@@ -666,7 +683,7 @@ export default function GovernanceMap({
                     <div 
                       className="text-white px-2 py-1 rounded text-xs font-bold border leading-none bg-[#00f2ff]/20 border-[#00f2ff]"
                     >
-                      {hoveredNode.prosperityScore?.toFixed(0)}
+                      {Math.round(hoveredNode.prosperityScore || 0)}
                     </div>
                   </div>
                 </div>
@@ -674,7 +691,7 @@ export default function GovernanceMap({
                 <div className="grid grid-cols-3 gap-2 border-t border-white/10 pt-3 mt-3">
                   <div className="flex flex-col">
                     <span className="text-[8px] text-white/40 uppercase tracking-wider mb-0.5 font-bold">GDP (PPP)</span>
-                    <span className="text-xs text-white font-mono">${(hoveredNode.gdpPpp / 1000).toFixed(0)}k</span>
+                    <span className="text-xs text-white font-mono">${Math.round(hoveredNode.gdpPpp / 1000)}k</span>
                   </div>
                   <div className="flex flex-col border-l border-white/10 pl-2">
                     <span className="text-[8px] text-white/40 uppercase tracking-wider mb-0.5 font-bold">CPI</span>
@@ -682,7 +699,7 @@ export default function GovernanceMap({
                   </div>
                   <div className="flex flex-col border-l border-white/10 pl-2">
                     <span className="text-[8px] text-white/40 uppercase tracking-wider mb-0.5 font-bold">Inflation</span>
-                    <span className="text-xs text-[#4ade80] font-mono">{hoveredNode.inflation}%</span>
+                    <span className="text-xs text-[#4ade80] font-mono">{Math.round(hoveredNode.inflation || 0)}%</span>
                   </div>
                 </div>
 

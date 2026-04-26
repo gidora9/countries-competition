@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import GovernanceMap, { REGIONS, REGIMES } from './components/GovernanceMap';
 import CommandMenu from './components/CommandMenu';
 import ComparisonPanel from './components/ComparisonPanel';
@@ -24,6 +24,7 @@ export default function App() {
   const [hoveredRegime, setHoveredRegime] = useState<string | null>(null);
   const [groupBy, setGroupBy] = useState<'None' | 'Region' | 'Regime'>('None');
   const [yAxis, setYAxis] = useState<YAxisMetric>('ProsperityScore');
+  const [topN, setTopN] = useState<'All' | 10 | 20 | 50>('All');
 
   // COMPARISON STATE
   const [selectedCountryIds, setSelectedCountryIds] = useState<string[]>([]);
@@ -97,7 +98,32 @@ export default function App() {
     });
   };
 
-  const currentData = historicalData[currentYear] || liveData;
+  const currentData = useMemo(() => {
+    let base = historicalData[currentYear] || liveData;
+    
+    if (topN !== 'All') {
+      const getValue = (d: CountryCPI) => {
+        switch (yAxis) {
+          case 'ProsperityScore': return d.prosperityScore || 0;
+          case 'CPI': return d.score;
+          case 'GDP': return d.gdpPpp;
+          case 'Happiness': return d.happiness;
+          case 'MeaningfulLife': return d.meaningfulLife;
+          case 'Inflation': return d.inflation || 0;
+          case 'Unemployment': return d.unemployment || 0;
+          case 'Education': return d.education || 0;
+          case 'LifeExpectancy': return d.lifeExpectancy || 0;
+          case 'PressFreedom': return d.pressFreedom || 0;
+          default: return d.score;
+        }
+      };
+      
+      const isReversed = yAxis === 'Inflation' || yAxis === 'Unemployment';
+      const sorted = [...base].sort((a, b) => isReversed ? getValue(a) - getValue(b) : getValue(b) - getValue(a));
+      base = sorted.slice(0, topN);
+    }
+    return base;
+  }, [historicalData, currentYear, liveData, topN, yAxis]);
 
   const selectedNodes = currentData.filter(d => selectedCountryIds.includes(d.id));
 
@@ -129,7 +155,10 @@ export default function App() {
               <span className="text-3xl xl:text-4xl font-light tracking-tighter text-text-primary block leading-none">
                 Global Prosperity
               </span>
-              <span className="text-text-tertiary text-sm mt-3 block font-mono">/ {currentYear}</span>
+              <div className="mt-4 inline-flex items-center gap-2 bg-brand-soft/20 border border-brand-accent/20 px-3 py-1.5 rounded-lg shadow-sm">
+                <span className="text-brand-accent uppercase tracking-widest text-[9px] font-bold">Year</span>
+                <span className="text-xl font-bold font-mono text-text-primary leading-none">{currentYear}</span>
+              </div>
             </div>
             <ThemeToggle />
           </div>
@@ -141,12 +170,38 @@ export default function App() {
           {/* UNIFIED CONTROLS */}
           <div className="flex flex-col gap-6 w-full flex-1">
             
-            <div className="bg-surface-canvas border border-border-subtle rounded-xl p-4">
-              <h3 className="text-text-primary text-[11px] font-bold tracking-[0.1em] uppercase mb-5 flex items-center justify-between">
+            <div className="bg-surface-canvas border border-border-subtle rounded-xl p-4 relative overflow-hidden">
+              <h3 className="text-text-primary text-[11px] font-bold tracking-[0.1em] uppercase mb-5 flex items-center justify-between z-10 relative">
                 <span>View Controls</span>
               </h3>
               
-              <div className="flex flex-col gap-5">
+              <div className="absolute right-[-20px] top-[-20px] text-[100px] font-black text-text-primary opacity-[0.03] select-none pointer-events-none">
+                {currentYear}
+              </div>
+              
+              <div className="flex flex-col gap-5 z-10 relative">
+                {/* Top N Filter */}
+                <div>
+                  <label className="text-text-tertiary text-[9px] font-bold tracking-[0.2em] uppercase mb-1.5 flex justify-between">
+                    <span>Rank Limit</span>
+                  </label>
+                  <div className="flex bg-surface-panel p-1 rounded-lg border border-border-soft">
+                    {['All', 50, 20, 10].map(val => (
+                      <button
+                        key={val}
+                        onClick={() => setTopN(val as any)}
+                        className={`flex-1 py-1.5 text-[9px] uppercase font-bold tracking-widest rounded-md transition-all ${
+                          topN === val
+                            ? 'bg-brand-soft text-brand-accent shadow-[0_1px_3px_rgba(0,0,0,0.1)]'
+                            : 'text-text-tertiary hover:text-text-primary'
+                        }`}
+                      >
+                        {val === 'All' ? 'Global' : `Top ${val}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Y Axis Select */}
                 <div>
                   <label className="text-text-tertiary text-[9px] font-bold tracking-[0.2em] uppercase mb-1.5 flex justify-between">

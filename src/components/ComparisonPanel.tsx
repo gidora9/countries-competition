@@ -35,38 +35,24 @@ export default function ComparisonPanel({ countries, onClose, onRemove }: Props)
             </button>
           </div>
 
-          <div className="p-4 flex flex-col gap-3 max-h-[400px] overflow-y-auto custom-scrollbar">
+          <div className="p-3 flex flex-col gap-2 max-h-[300px] overflow-y-auto custom-scrollbar">
             {countries.map((country, idx) => (
-              <div key={country.id} className="relative flex-none w-full bg-surface-canvas border border-border-subtle rounded-xl p-3 flex flex-col group transition-all hover:border-border-strong hover:shadow-[0_0_15px_rgba(0,0,0,0.05)] dark:hover:shadow-[0_0_15px_rgba(255,255,255,0.02)]">
-                <button 
-                  onClick={() => onRemove(country.id)} 
-                  className="absolute top-2 right-2 p-1 bg-surface-hover text-text-tertiary hover:text-rose-500 hover:bg-rose-500/10 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100"
-                >
-                  <X className="w-3 h-3" />
-                </button>
+              <div key={country.id} className="relative flex-none w-full bg-surface-canvas border border-border-subtle rounded-lg p-2.5 flex items-center justify-between group transition-all hover:border-border-strong hover:shadow-sm">
                 
-                <div className="flex items-center gap-3 mb-3">
-                  <img src={getFlagUrl(country.id)} alt="Flag" className="w-8 h-8 rounded-full border border-border-strong object-cover shadow-sm shrink-0" />
-                  <div className="flex flex-col min-w-0">
-                    <h4 className="text-xs font-bold text-text-primary leading-tight truncate w-full" title={country.name}>{country.name}</h4>
-                    <span className="text-[8px] uppercase tracking-[0.2em] text-text-tertiary mt-0.5 truncate">{country.regimeType.replace('Democracy', 'Dem.')}</span>
+                <div className="flex items-center gap-3 w-full pr-4 overflow-hidden">
+                  <img src={getFlagUrl(country.id)} alt="Flag" className="w-6 h-6 rounded-full border border-border-strong object-cover shrink-0" />
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <h4 className="text-xs font-bold text-text-primary truncate" title={country.name}>{country.name}</h4>
+                    <span className="text-[9px] uppercase tracking-wider text-text-tertiary truncate">Prosp: {country.prosperityScore?.toFixed(0)} | CPI: {country.score}</span>
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-1.5 mt-auto text-xs font-mono">
-                  <div className="flex justify-between items-center bg-surface-panel p-1 rounded">
-                    <span className="text-[9px] uppercase tracking-wider text-text-tertiary font-sans font-bold">Prosp Idx</span>
-                    <span className="font-bold text-text-primary">{country.prosperityScore?.toFixed(0)}</span>
-                  </div>
-                  <div className="flex justify-between items-center bg-surface-panel p-1 rounded">
-                    <span className="text-[9px] uppercase tracking-wider text-text-tertiary font-sans font-bold">CPI</span>
-                    <span className="font-bold text-text-primary">{country.score.toString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center bg-surface-panel p-1 rounded">
-                    <span className="text-[9px] uppercase tracking-wider text-text-tertiary font-sans font-bold">GDP</span>
-                    <span className="font-bold text-text-primary">${(country.gdpPpp/1000).toFixed(0)}k</span>
-                  </div>
-                </div>
+                <button 
+                  onClick={() => onRemove(country.id)} 
+                  className="shrink-0 p-1 bg-surface-hover text-text-tertiary hover:text-rose-500 hover:bg-rose-500/10 rounded-full transition-all cursor-pointer opacity-0 group-hover:opacity-100"
+                >
+                  <X className="w-3 h-3" />
+                </button>
               </div>
             ))}
           </div>
