@@ -24,7 +24,7 @@ export default function App() {
   const [hoveredRegime, setHoveredRegime] = useState<string | null>(null);
   const [groupBy, setGroupBy] = useState<'None' | 'Region' | 'Regime'>('None');
   const [yAxis, setYAxis] = useState<YAxisMetric>('ProsperityScore');
-  const [topN, setTopN] = useState<'All' | 10 | 20 | 50>('All');
+  const [viewMode, setViewMode] = useState<'Monitor' | 'Mobile'>('Mobile');
 
   // COMPARISON STATE
   const [selectedCountryIds, setSelectedCountryIds] = useState<string[]>([]);
@@ -101,7 +101,8 @@ export default function App() {
   const currentData = useMemo(() => {
     let base = historicalData[currentYear] || liveData;
     
-    if (topN !== 'All') {
+    if (viewMode === 'Mobile') {
+      const topN = 50;
       const getValue = (d: CountryCPI) => {
         switch (yAxis) {
           case 'ProsperityScore': return d.prosperityScore || 0;
@@ -123,7 +124,7 @@ export default function App() {
       base = sorted.slice(0, topN);
     }
     return base;
-  }, [historicalData, currentYear, liveData, topN, yAxis]);
+  }, [historicalData, currentYear, liveData, viewMode, yAxis]);
 
   const selectedNodes = currentData.filter(d => selectedCountryIds.includes(d.id));
 
@@ -143,8 +144,8 @@ export default function App() {
       </header>
 
       {/* DESKTOP LEFT SIDEBAR (Visible >= lg) */}
-      <aside className="hidden lg:flex w-72 xl:w-[22rem] shrink-0 h-full border-r border-border-subtle flex-col justify-between p-6 xl:p-8 z-20 bg-surface-panel shadow-2xl relative overflow-y-auto custom-scrollbar">
-        <div className="w-full absolute top-0 left-0 h-40 bg-gradient-to-b from-[var(--brand-soft)] to-transparent pointer-events-none"></div>
+      <aside className="hidden lg:flex w-80 xl:w-[24rem] shrink-0 h-full border-r border-border-subtle flex-col justify-between p-6 xl:p-8 z-20 bg-[var(--surface-base)] shadow-2xl relative overflow-auto custom-scrollbar">
+        <div className="w-full absolute top-0 left-0 h-40 bg-gradient-to-b from-[var(--brand-soft)] to-transparent pointer-events-none opacity-50"></div>
         
         <div className="flex flex-col relative z-10 w-full mb-8">
           <div className="mb-6 flex items-start justify-between">
@@ -180,23 +181,23 @@ export default function App() {
               </div>
               
               <div className="flex flex-col gap-5 z-10 relative">
-                {/* Top N Filter */}
+                {/* View Mode Filter */}
                 <div>
                   <label className="text-text-tertiary text-[9px] font-bold tracking-[0.2em] uppercase mb-1.5 flex justify-between">
-                    <span>Rank Limit</span>
+                    <span>View Mode</span>
                   </label>
                   <div className="flex bg-surface-panel p-1 rounded-lg border border-border-soft">
-                    {['All', 50, 20, 10].map(val => (
+                    {['Monitor', 'Mobile'].map(val => (
                       <button
                         key={val}
-                        onClick={() => setTopN(val as any)}
+                        onClick={() => setViewMode(val as any)}
                         className={`flex-1 py-1.5 text-[9px] uppercase font-bold tracking-widest rounded-md transition-all ${
-                          topN === val
+                          viewMode === val
                             ? 'bg-brand-soft text-brand-accent shadow-[0_1px_3px_rgba(0,0,0,0.1)]'
                             : 'text-text-tertiary hover:text-text-primary'
                         }`}
                       >
-                        {val === 'All' ? 'Global' : `Top ${val}`}
+                        {val}
                       </button>
                     ))}
                   </div>
@@ -356,6 +357,7 @@ export default function App() {
               onNodeClick={handleNodeClick}
               currentYear={currentYear}
               isPlaying={isPlaying}
+              forceMobileView={viewMode === 'Mobile'}
             />
           </div>
           

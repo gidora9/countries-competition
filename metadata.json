@@ -1,6 +1,6 @@
 {
-  "name": "Corruption WW",
-  "description": "",
+  "name": "Global Prosperity Index",
+  "description": "An interactive data visualization exploring the prosperity, corruption, and governance of nations globally.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

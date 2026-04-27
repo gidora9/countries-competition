@@ -161,19 +161,20 @@ interface GovernanceMapProps {
   onNodeClick?: (id: string) => void;
   currentYear?: number;
   isPlaying?: boolean;
+  forceMobileView?: boolean;
 }
 
-const yDomains: Record<YAxisMetric, { max: number, ticks: number[], format: (v: number) => string }> = {
-  ProsperityScore: { max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => v.toFixed(0) },
-  CPI: { max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => v === 100 ? "100" : v === 0 ? "00" : v.toString() },
-  GDP: { max: 120000, ticks: [120000, 96000, 72000, 48000, 24000, 0], format: (v: number) => v === 0 ? "$0" : `$${Math.round(v/1000)}k` },
-  Happiness: { max: 10, ticks: [10, 8, 6, 4, 2, 0], format: (v: number) => v.toString() },
-  MeaningfulLife: { max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => `${v}%` },
-  Inflation: { max: 50, ticks: [50, 40, 30, 20, 10, 0], format: (v: number) => `${Math.round(v)}%` },
-  Unemployment: { max: 30, ticks: [30, 24, 18, 12, 6, 0], format: (v: number) => `${Math.round(v)}%` },
-  Education: { max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => Math.round(v).toString() },
-  LifeExpectancy: { max: 90, ticks: [90, 75, 60, 45, 30, 15], format: (v: number) => Math.round(v).toString() },
-  PressFreedom: { max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => Math.round(v).toString() },
+const yDomains: Record<YAxisMetric, { min: number, max: number, ticks: number[], format: (v: number) => string }> = {
+  ProsperityScore: { min: 20, max: 90, ticks: [90, 76, 62, 48, 34, 20], format: (v: number) => v.toFixed(0) },
+  CPI: { min: 0, max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => v === 100 ? "100" : v === 0 ? "00" : v.toString() },
+  GDP: { min: 0, max: 120000, ticks: [120000, 96000, 72000, 48000, 24000, 0], format: (v: number) => v === 0 ? "$0" : `$${Math.round(v/1000)}k` },
+  Happiness: { min: 0, max: 10, ticks: [10, 8, 6, 4, 2, 0], format: (v: number) => v.toString() },
+  MeaningfulLife: { min: 0, max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => `${v}%` },
+  Inflation: { min: 0, max: 50, ticks: [50, 40, 30, 20, 10, 0], format: (v: number) => `${Math.round(v)}%` },
+  Unemployment: { min: 0, max: 30, ticks: [30, 24, 18, 12, 6, 0], format: (v: number) => `${Math.round(v)}%` },
+  Education: { min: 0, max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => Math.round(v).toString() },
+  LifeExpectancy: { min: 20, max: 90, ticks: [90, 76, 62, 48, 34, 20], format: (v: number) => Math.round(v).toString() },
+  PressFreedom: { min: 0, max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => Math.round(v).toString() },
 };
 
 export default function GovernanceMap({ 
@@ -188,7 +189,8 @@ export default function GovernanceMap({
   selectedNodeIds = [],
   onNodeClick = () => {},
   currentYear = 2024,
-  isPlaying = false
+  isPlaying = false,
+  forceMobileView = false
 }: GovernanceMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -224,13 +226,15 @@ export default function GovernanceMap({
 
   // Responsive: track if mobile
   // We use window.innerWidth instead of container dimensions since the map container is smaller than viewport due to the sidebar
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [isMobileWindow, setIsMobileWindow] = useState(window.innerWidth < 1024);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    const handleResize = () => setIsMobileWindow(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const isMobile = forceMobileView || isMobileWindow;
 
   const handleNodeMouseEnter = useCallback((node: SimulationNode) => {
     setHoveredNode(node);
@@ -316,7 +320,7 @@ export default function GovernanceMap({
     if (groupBy !== 'None') {
        idealRadius *= 0.65;
     }
-    return Math.max(12, Math.min(28, idealRadius));
+    return Math.max(12, Math.min(36, idealRadius));
   };
   const dynamicRadius = getDynamicRadius();
 
@@ -326,10 +330,12 @@ export default function GovernanceMap({
   const invertedAxis = ['Inflation', 'Unemployment'].includes(yAxis);
 
   const getRatio = useCallback((val: number) => {
-    let ratio = val / domain.max;
+    let ratio = (val - domain.min) / (domain.max - domain.min);
+    // clamp ratio to 0-1
+    ratio = Math.max(0, Math.min(1, ratio));
     if (invertedAxis) ratio = 1 - ratio;
     return ratio;
-  }, [domain.max, invertedAxis]);
+  }, [domain.max, domain.min, invertedAxis]);
 
   const nodes = useMemo(() => {
     if (dimensions.width === 0 || dimensions.height === 0 || isMobile) return [];
@@ -387,9 +393,10 @@ export default function GovernanceMap({
       )
       .force(
         'x', 
-        d3.forceX<SimulationNode>(getTargetX).strength(groupBy === 'None' ? 0.04 : 0.2) // Stronger X force when grouped
+        d3.forceX<SimulationNode>(getTargetX).strength(groupBy === 'None' ? 0.015 : 0.2) // Much weaker X force so they fill the screen
       )
-      .force('collide', d3.forceCollide<SimulationNode>(radius + 2).iterations(4))
+      .force('charge', d3.forceManyBody().strength(groupBy === 'None' ? -15 : -30))
+      .force('collide', d3.forceCollide<SimulationNode>(radius + 3).iterations(4))
       .stop();
 
     // Warm up the simulation
