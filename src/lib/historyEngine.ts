@@ -28,11 +28,11 @@ export function generateDecade(baseData: CountryCPI[]): Record<number, CountryCP
       let newHappiness = Math.max(0, Math.min(10, country.happiness + (Math.random() * 0.2 - 0.1)));
       let newMeaning = Math.max(0, Math.min(100, country.meaningfulLife + (Math.random() * 2 - 1)));
 
-      const randInflation = Math.random() * 2 - 0.5;
-      const randUnemp = Math.random() * 1.5 - 0.5;
-      const randEdu = Math.random() - 0.5;
-      const randLife = Math.random() * 0.4 - 0.2;
-      const randPress = Math.random() * 4 - 2;
+      const randInflation = Math.random() * 2 - 1.0; // historical inflation fluctuates
+      const randUnemp = Math.random() * 1.5 - 0.75;
+      const randEdu = -(Math.random() * 0.4); // education drops slightly going back in time
+      const randLife = -(Math.random() * 0.25 + 0.05); // life expectancy drops going back in time
+      const randPress = Math.random() * 2 - 1;
 
       return {
         ...country,
@@ -41,9 +41,9 @@ export function generateDecade(baseData: CountryCPI[]): Record<number, CountryCP
         happiness: newHappiness,
         meaningfulLife: newMeaning,
         inflation: Math.max(0, (country.inflation || 5) + randInflation),
-        unemployment: Math.max(0, (country.unemployment || 5) + randUnemp),
+        unemployment: Math.max(0.5, (country.unemployment || 5) + randUnemp),
         education: Math.max(0, Math.min(100, (country.education || 50) + randEdu)),
-        lifeExpectancy: Math.max(30, Math.min(90, (country.lifeExpectancy || 70) + randLife)),
+        lifeExpectancy: Math.max(30, Math.min(95, (country.lifeExpectancy || 70) + randLife)),
         pressFreedom: Math.max(0, Math.min(100, (country.pressFreedom || 50) + randPress))
       };
     });

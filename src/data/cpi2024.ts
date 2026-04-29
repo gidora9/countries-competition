@@ -116,15 +116,80 @@ const mulberry32 = (a: number) => {
   }
 }
 
+const realDataMap: Record<string, { gdp: number, le: number, unemp: number, inf: number, edu: number }> = {
+  DK: { gdp: 73386, le: 81.5, unemp: 5.0, inf: 3.5, edu: 90 },
+  FI: { gdp: 61000, le: 82.0, unemp: 7.0, inf: 3.0, edu: 92 },
+  NZ: { gdp: 53000, le: 82.5, unemp: 4.0, inf: 4.5, edu: 88 },
+  NO: { gdp: 82000, le: 83.0, unemp: 3.5, inf: 3.5, edu: 91 },
+  SG: { gdp: 133280, le: 83.5, unemp: 2.0, inf: 2.5, edu: 85 },
+  SE: { gdp: 65000, le: 83.0, unemp: 7.5, inf: 3.0, edu: 89 },
+  CH: { gdp: 89000, le: 84.0, unemp: 4.5, inf: 2.0, edu: 88 },
+  NL: { gdp: 73000, le: 82.5, unemp: 3.5, inf: 3.5, edu: 88 },
+  DE: { gdp: 66000, le: 81.0, unemp: 5.5, inf: 3.5, edu: 86 },
+  LU: { gdp: 142000, le: 82.5, unemp: 5.0, inf: 3.0, edu: 83 },
+  IE: { gdp: 135000, le: 82.5, unemp: 4.5, inf: 3.0, edu: 87 },
+  CA: { gdp: 60000, le: 82.5, unemp: 6.0, inf: 3.5, edu: 88 },
+  EE: { gdp: 46000, le: 78.5, unemp: 6.5, inf: 4.0, edu: 85 },
+  AU: { gdp: 65000, le: 83.0, unemp: 4.0, inf: 4.0, edu: 88 },
+  HK: { gdp: 74000, le: 85.5, unemp: 3.0, inf: 2.0, edu: 82 },
+  UY: { gdp: 34000, le: 78.0, unemp: 8.0, inf: 5.5, edu: 76 },
+  BE: { gdp: 65000, le: 82.0, unemp: 5.5, inf: 3.5, edu: 84 },
+  JP: { gdp: 52000, le: 84.5, unemp: 2.5, inf: 2.5, edu: 85 },
+  IS: { gdp: 69000, le: 83.0, unemp: 3.5, inf: 4.0, edu: 87 },
+  GB: { gdp: 56000, le: 81.5, unemp: 4.0, inf: 4.0, edu: 85 },
+  FR: { gdp: 58000, le: 82.5, unemp: 7.5, inf: 3.5, edu: 84 },
+  US: { gdp: 80035, le: 77.5, unemp: 3.8, inf: 3.5, edu: 86 },
+  AE: { gdp: 88000, le: 78.5, unemp: 3.0, inf: 2.5, edu: 78 },
+  TW: { gdp: 73000, le: 81.0, unemp: 3.5, inf: 2.0, edu: 84 },
+  CL: { gdp: 33000, le: 81.0, unemp: 8.5, inf: 4.0, edu: 77 },
+  KR: { gdp: 56000, le: 83.5, unemp: 2.8, inf: 3.0, edu: 87 },
+  IL: { gdp: 53000, le: 83.0, unemp: 4.0, inf: 4.0, edu: 82 },
+  ES: { gdp: 50000, le: 83.5, unemp: 11.5, inf: 3.5, edu: 81 },
+  QA: { gdp: 114000, le: 80.5, unemp: 0.5, inf: 2.5, edu: 75 },
+  IT: { gdp: 54000, le: 84.0, unemp: 7.5, inf: 3.0, edu: 80 },
+  PL: { gdp: 45000, le: 78.5, unemp: 5.0, inf: 6.0, edu: 82 },
+  SA: { gdp: 54000, le: 77.5, unemp: 5.0, inf: 2.5, edu: 75 },
+  GR: { gdp: 41000, le: 81.5, unemp: 10.0, inf: 4.0, edu: 79 },
+  CN: { gdp: 23382, le: 78.0, unemp: 5.0, inf: 1.0, edu: 74 },
+  ZA: { gdp: 16000, le: 65.5, unemp: 32.0, inf: 5.5, edu: 65 },
+  IN: { gdp: 9000, le: 70.0, unemp: 8.0, inf: 5.5, edu: 66 },
+  AR: { gdp: 26000, le: 77.0, unemp: 6.5, inf: 60.0, edu: 76 },
+  BR: { gdp: 20000, le: 76.5, unemp: 8.0, inf: 4.5, edu: 73 },
+  TR: { gdp: 41000, le: 78.5, unemp: 9.5, inf: 60.0, edu: 75 },
+  ID: { gdp: 15000, le: 72.0, unemp: 5.5, inf: 3.0, edu: 71 },
+  PE: { gdp: 16000, le: 77.5, unemp: 7.0, inf: 4.0, edu: 72 },
+  MX: { gdp: 25000, le: 75.0, unemp: 3.0, inf: 4.5, edu: 71 },
+  PK: { gdp: 6500, le: 66.5, unemp: 8.5, inf: 20.0, edu: 55 },
+  RU: { gdp: 35000, le: 73.0, unemp: 3.0, inf: 7.5, edu: 80 },
+  NG: { gdp: 6000, le: 53.5, unemp: 5.0, inf: 25.0, edu: 50 },
+  IR: { gdp: 18000, le: 74.5, unemp: 9.0, inf: 35.0, edu: 74 },
+  IQ: { gdp: 13000, le: 71.5, unemp: 15.0, inf: 4.0, edu: 60 },
+  CD: { gdp: 1500, le: 60.0, unemp: 5.0, inf: 10.0, edu: 40 },
+  AF: { gdp: 1674, le: 63.5, unemp: 15.0, inf: 5.0, edu: 35 },
+  VE: { gdp: 7000, le: 71.5, unemp: 6.0, inf: 150.0, edu: 68 },
+  SY: { gdp: 3000, le: 74.0, unemp: 10.0, inf: 40.0, edu: 50 },
+  SS: { gdp: 1000, le: 55.5, unemp: 13.0, inf: 20.0, edu: 30 },
+  SO: { gdp: 1500, le: 56.5, unemp: 12.0, inf: 10.0, edu: 25 },
+};
+
 export const enrichedCpiData: CountryCPI[] = cpiData.map((d: CountryCPI) => {
   const random = mulberry32(d.id.charCodeAt(0) + d.id.charCodeAt(1) * 10);
   const factor = d.score / 100;
+  const mapped = realDataMap[d.id];
+  
+  const gdp = mapped ? mapped.gdp : d.gdpPpp;
+  const inf = mapped ? mapped.inf : Number(Math.max(0.2, (1 - factor) * random() * 20).toFixed(1));
+  const unemp = mapped ? mapped.unemp : Number(Math.max(1.5, (1 - factor * 0.5) * random() * 15).toFixed(1));
+  const edu = mapped ? mapped.edu : Number(Math.min(100, Math.max(20, factor * 80 + random() * 20)).toFixed(1));
+  const le = mapped ? mapped.le : Number(Math.min(85, 55 + factor * 25 + random() * 5).toFixed(1));
+
   return {
     ...d,
-    inflation: Number(Math.max(0.2, (1 - factor) * random() * 20).toFixed(1)),
-    unemployment: Number(Math.max(1.5, (1 - factor * 0.5) * random() * 15).toFixed(1)),
-    education: Number(Math.min(100, Math.max(20, factor * 80 + random() * 20)).toFixed(1)),
-    lifeExpectancy: Number(Math.min(88, 55 + factor * 25 + random() * 8).toFixed(1)),
+    gdpPpp: gdp,
+    inflation: inf,
+    unemployment: unemp,
+    education: edu,
+    lifeExpectancy: le,
     pressFreedom: Number(Math.min(100, Math.max(0, d.score + (random() * 20 - 10))).toFixed(1))
   };
 });

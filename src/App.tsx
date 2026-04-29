@@ -163,10 +163,7 @@ export default function App() {
             </div>
             <ThemeToggle />
           </div>
-          
-          <div className="w-full mb-8">
-            <CommandMenu onSearch={setSearchQuery} />
-          </div>
+
 
           {/* UNIFIED CONTROLS */}
           <div className="flex flex-col gap-6 w-full flex-1">
@@ -181,35 +178,13 @@ export default function App() {
               </div>
               
               <div className="flex flex-col gap-5 z-10 relative">
-                {/* View Mode Filter */}
-                <div>
-                  <label className="text-text-tertiary text-[9px] font-bold tracking-[0.2em] uppercase mb-1.5 flex justify-between">
-                    <span>View Mode</span>
-                  </label>
-                  <div className="flex bg-surface-panel p-1 rounded-lg border border-border-soft">
-                    {['Monitor', 'Mobile'].map(val => (
-                      <button
-                        key={val}
-                        onClick={() => setViewMode(val as any)}
-                        className={`flex-1 py-1.5 text-[9px] uppercase font-bold tracking-widest rounded-md transition-all ${
-                          viewMode === val
-                            ? 'bg-brand-soft text-brand-accent shadow-[0_1px_3px_rgba(0,0,0,0.1)]'
-                            : 'text-text-tertiary hover:text-text-primary'
-                        }`}
-                      >
-                        {val}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Y Axis Select */}
                 <div>
                   <label className="text-text-tertiary text-[9px] font-bold tracking-[0.2em] uppercase mb-1.5 flex justify-between">
-                    <span>Vertical Axis (Y)</span>
+                    <span>Vertical Axis (Y) Element</span>
                     {yAxis !== 'ProsperityScore' && <span className="text-brand-accent animate-pulse text-[8px] opacity-70">ACTIVE</span>}
                   </label>
-                  <div className="relative">
+                  <div className="relative mb-3">
                     <select 
                       value={yAxis} 
                       onChange={(e) => setYAxis(e.target.value as any)}
@@ -235,6 +210,105 @@ export default function App() {
                       </optgroup>
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-tertiary pointer-events-none" />
+                  </div>
+                  
+                  {/* Dynamic Metric Information */}
+                  <div className="bg-surface-panel rounded-lg p-3 border border-border-soft text-[10px] leading-relaxed">
+                    {yAxis === 'ProsperityScore' && (
+                      <div className="flex flex-col gap-2">
+                        <div><strong className="text-brand-accent">Formula:</strong> Composite Weighted Mean</div>
+                        <div className="text-text-tertiary font-mono pt-1 pb-1">
+                          15% <a href="https://data.worldbank.org/indicator/NY.GDP.PCAP.PP.CD" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2">GDP(PPP)</a><br/>
+                          15% <a href="https://www.transparency.org/en/cpi" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2">CPI</a><br/>
+                          15% <a href="https://data.worldbank.org/indicator/SP.DYN.LE00.IN" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2">Life Exp</a><br/>
+                          15% <a href="https://hdr.undp.org/data-center" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2">Education</a><br/>
+                          10% <a href="https://rsf.org/en/index" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2">Press Frdm</a><br/>
+                          10% <a href="https://www.worldvaluessurvey.org/" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2">Meaning</a><br/>
+                          10% <a href="https://worldhappiness.report/" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2">Happiness</a><br/>
+                          5% <span className="opacity-75">max(0, 100 - 3 * <a href="https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2">Inflation</a>)</span><br/>
+                          5% <span className="opacity-75">max(0, 100 - 5 * <a href="https://ilostat.ilo.org/" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2">Unemployment</a>)</span>
+                        </div>
+                        <div className="text-text-tertiary opacity-80 text-[9px]">
+                          Values normalized (0-100) before weighting.
+                        </div>
+                      </div>
+                    )}
+                    {yAxis === 'CPI' && (
+                      <div className="flex flex-col gap-1">
+                        <div><strong className="text-brand-accent">Source:</strong> <a href="https://www.transparency.org/en/cpi" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2 tracking-wide">Transparency International</a></div>
+                        <div className="text-text-tertiary mt-1">Scale of 0 (Highly Corrupt) to 100 (Very Clean). Reflects perceived levels of public sector corruption.</div>
+                      </div>
+                    )}
+                    {yAxis === 'GDP' && (
+                      <div className="flex flex-col gap-1">
+                        <div><strong className="text-brand-accent">Source:</strong> <a href="https://data.worldbank.org/indicator/NY.GDP.PCAP.PP.CD" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2 tracking-wide">World Bank</a></div>
+                        <div className="text-text-tertiary">GDP per capita based on purchasing power parity (PPP) in current international dollars.</div>
+                      </div>
+                    )}
+                    {yAxis === 'Inflation' && (
+                      <div className="flex flex-col gap-1">
+                        <div><strong className="text-brand-accent">Source:</strong> <a href="https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2 tracking-wide">World Bank</a></div>
+                        <div className="text-text-tertiary">Inflation, consumer prices (annual %). Shown inverted (higher is worse).</div>
+                      </div>
+                    )}
+                    {yAxis === 'Unemployment' && (
+                      <div className="flex flex-col gap-1">
+                        <div><strong className="text-brand-accent">Source:</strong> <a href="https://ilostat.ilo.org/" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2 tracking-wide">ILOSTAT</a></div>
+                        <div className="text-text-tertiary mt-1">Unemployment, total (% of total labor force). Modeled estimates. Shown inverted on graph.</div>
+                      </div>
+                    )}
+                    {yAxis === 'Happiness' && (
+                      <div className="flex flex-col gap-1">
+                        <div><strong className="text-brand-accent">Source:</strong> <a href="https://worldhappiness.report/" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2 tracking-wide">Gallup World Poll</a></div>
+                        <div className="text-text-tertiary mt-1">National average response to the Cantril ladder question (0-10 scale) representing perceived life satisfaction.</div>
+                      </div>
+                    )}
+                    {yAxis === 'MeaningfulLife' && (
+                      <div className="flex flex-col gap-1">
+                        <div><strong className="text-brand-accent">Source:</strong> <a href="https://www.worldvaluessurvey.org/" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2 tracking-wide">World Values Survey</a></div>
+                        <div className="text-text-tertiary mt-1">Percentage of population indicating subjective feelings of meaning and purpose in their daily life.</div>
+                      </div>
+                    )}
+                    {yAxis === 'Education' && (
+                      <div className="flex flex-col gap-1">
+                        <div><strong className="text-brand-accent">Source:</strong> <a href="https://hdr.undp.org/data-center" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2 tracking-wide">UNDP Human Development</a></div>
+                        <div className="text-text-tertiary mt-1">Education Index derived by combining mean years of schooling for adults with expected years of schooling for children.</div>
+                      </div>
+                    )}
+                    {yAxis === 'LifeExpectancy' && (
+                      <div className="flex flex-col gap-1">
+                        <div><strong className="text-brand-accent">Source:</strong> <a href="https://data.worldbank.org/indicator/SP.DYN.LE00.IN" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2 tracking-wide">World Bank</a></div>
+                        <div className="text-text-tertiary">Life expectancy at birth (years). Tracks the overall average lifespan of a newborn.</div>
+                      </div>
+                    )}
+                    {yAxis === 'PressFreedom' && (
+                      <div className="flex flex-col gap-1">
+                        <div><strong className="text-brand-accent">Source:</strong> <a href="https://rsf.org/en/index" target="_blank" rel="noreferrer" className="text-text-primary hover:underline underline-offset-2 tracking-wide">Reporters Without Borders</a></div>
+                        <div className="text-text-tertiary mt-1">World Press Freedom Index score (0-100 scale, higher is better).</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* View Mode Filter */}
+                <div>
+                  <label className="text-text-tertiary text-[9px] font-bold tracking-[0.2em] uppercase mb-1.5 flex justify-between">
+                    <span>View Mode</span>
+                  </label>
+                  <div className="flex bg-surface-panel p-1 rounded-lg border border-border-soft">
+                    {['Monitor', 'Mobile'].map(val => (
+                      <button
+                        key={val}
+                        onClick={() => setViewMode(val as any)}
+                        className={`flex-1 py-1.5 text-[9px] uppercase font-bold tracking-widest rounded-md transition-all ${
+                          viewMode === val
+                            ? 'bg-brand-soft text-brand-accent shadow-[0_1px_3px_rgba(0,0,0,0.1)]'
+                            : 'text-text-tertiary hover:text-text-primary'
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -275,62 +349,10 @@ export default function App() {
           />
         </div>
 
-        <div className="mt-8">
-          <details className="group mb-4 marker:content-['']">
-            <summary className="flex items-center gap-2 cursor-pointer list-none">
-              <ChevronDown className="w-4 h-4 text-text-tertiary group-open:rotate-180 transition-transform" />
-              <h4 className="text-[10px] uppercase tracking-[0.2em] font-bold text-text-secondary">Methodology & Formula</h4>
-            </summary>
-            
-            <div className="mt-4 pl-6">
-              <div className="bg-surface-panel rounded-lg p-3 border border-border-soft mb-4">
-                 <h4 className="text-[9px] uppercase tracking-wider font-bold mb-1.5 text-text-secondary">Prosperity Formula</h4>
-                 <p className="text-[10px] text-text-tertiary leading-relaxed font-mono tracking-tight">
-                    [ GDP, CPI, Life Exp, Edu ] × 15% <br/>
-                    [ Press, Meaning, Joy ] × 10% <br/>
-                    [ -Inflation, -Unemp ] × 5%
-                 </p>
-              </div>
-
-              <p className="text-[8px] text-text-tertiary mb-4 leading-relaxed border-b border-border-soft pb-3">
-                * Data is composite-normalized by averaging multiple sources per factor from 2000 to present, minimizing distinct bounds bias.
-              </p>
-              <div className="flex flex-col gap-3 text-[9px] text-text-tertiary font-mono">
-                <div>
-                  <span className="text-brand-accent uppercase tracking-widest font-bold block mb-1 opacity-60">Corruption & Regime</span>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 leading-relaxed">
-                  <a href="https://v-dem.net/" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">V-Dem Institute (v14)</a>
-                  <span className="text-border-strong">·</span>
-                  <a href="https://info.worldbank.org/governance/wgi/" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">World Bank (WGI)</a>
-                  <span className="text-border-strong">·</span>
-                  <a href="https://www.transparency.org/en/cpi" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">Transparency Int. (CPI)</a>
-                  <span className="text-border-strong">·</span>
-                  <a href="https://www.eiu.com/n/campaigns/democracy-index-2023/" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">EIU Index</a>
-                </div>
-              </div>
-              <div>
-                <span className="text-brand-accent uppercase tracking-widest font-bold block mb-1 opacity-60">Macroeconomics</span>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 leading-relaxed">
-                  <a href="https://www.rug.nl/ggdc/productivity/pwt/" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">Penn World Table (10.0)</a>
-                  <span className="text-border-strong">·</span>
-                  <a href="https://www.imf.org/en/Publications/WEO" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">IMF WEO</a>
-                  <span className="text-border-strong">·</span>
-                  <a href="https://www.worldbank.org/en/programs/icp" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">World Bank (ICP)</a>
-                </div>
-              </div>
-              <div>
-                <span className="text-brand-accent uppercase tracking-widest font-bold block mb-1 opacity-60">Wellbeing & Affect</span>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 leading-relaxed">
-                  <a href="https://www.worldvaluessurvey.org/" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">World Values Survey (WVS-7)</a>
-                  <span className="text-border-strong">·</span>
-                  <a href="https://wellbeing.hmc.ox.ac.uk/" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">Oxford Wellbeing</a>
-                  <span className="text-border-strong">·</span>
-                  <a href="https://news.gallup.com/poll/105226/world-poll-methodology.aspx" target="_blank" rel="noreferrer" className="hover:text-text-primary transition-colors duration-200 decoration-border-strong underline-offset-2 hover:underline">Gallup Poll</a>
-                </div>
-              </div>
-            </div>
-            </div>
-          </details>
+        <div className="mt-8 flex flex-col gap-6">
+          <div className="w-full">
+            <CommandMenu onSearch={setSearchQuery} />
+          </div>
           <div className="flex flex-col gap-1 text-[8px] uppercase tracking-[0.2em] text-text-tertiary/40 font-mono mt-auto border-t border-border-soft/30 pt-3 relative z-10 w-full mb-1">
             <p className="flex justify-between items-center w-full"><span>Status: Deployed · {liveData.length} Nodes</span></p>
             {isWbLinked && <p className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-text-tertiary/50"></span> LIVE API: WB.GDP.PCAP </p>}
@@ -377,17 +399,8 @@ export default function App() {
 
           {/* LOW PROFILE FOOTER FOR DATA SOURCES */}
           <div className="absolute bottom-2 right-4 z-40 pointer-events-none text-right">
-             <div className="text-[9px] text-text-tertiary/60 font-mono tracking-widest flex items-center justify-end gap-2 drop-shadow-md">
-                <span className="font-bold uppercase">Data Reference:</span>
-                {yAxis === 'CPI' && <span>Transparency International — Corruption Perceptions Index (CPI) Historical Data 2000-2024</span>}
-                {yAxis === 'PressFreedom' && <span>Reporters Without Borders (RSF) — World Press Freedom Index 2000-2024</span>}
-                {yAxis === 'GDP' && <span>World Bank (ICP) & IMF World Economic Outlook — GDP (PPP) per capita 2000-2024</span>}
-                {yAxis === 'Inflation' && <span>World Bank & IMF — Global Inflation Rates (Consumer Prices) 2000-2024</span>}
-                {yAxis === 'Unemployment' && <span>International Labour Organization (ILOSTAT) — Modelled Estimates 2000-2024</span>}
-                {yAxis === 'Happiness' && <span>Gallup World Poll & World Happiness Report Methodology 2000-2024</span>}
-                {yAxis === 'MeaningfulLife' && <span>World Values Survey (WVS) & Oxford Wellbeing Research Center 2000-2024</span>}
-                {yAxis === 'Education' && <span>UNDP Human Development Data Center — Education Index 2000-2024</span>}
-                {yAxis === 'LifeExpectancy' && <span>World Health Organization (WHO) & World Bank — Life Expectancy at Birth 2000-2024</span>}
+             <div className="text-[9px] text-text-tertiary/60 font-mono tracking-widest flex items-center justify-end gap-2 drop-shadow-md opacity-40">
+                <span className="uppercase">Interactive Visual Explorer • 2000-2024</span>
              </div>
           </div>
         </div>

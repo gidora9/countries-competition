@@ -177,6 +177,19 @@ const yDomains: Record<YAxisMetric, { min: number, max: number, ticks: number[],
   PressFreedom: { min: 0, max: 100, ticks: [100, 80, 60, 40, 20, 0], format: (v: number) => Math.round(v).toString() },
 };
 
+const yAxisLabels: Record<YAxisMetric, string> = {
+  ProsperityScore: 'Prosperity Index',
+  CPI: 'Corruption Index',
+  GDP: 'GDP PPP Per Capita',
+  Happiness: 'Happiness Index',
+  MeaningfulLife: 'Meaningful Life',
+  Inflation: 'Inflation Rate',
+  Unemployment: 'Unemployment Rate',
+  Education: 'Education Index',
+  LifeExpectancy: 'Life Expectancy',
+  PressFreedom: 'Press Freedom',
+};
+
 export default function GovernanceMap({ 
   data, 
   searchQuery,
@@ -685,41 +698,42 @@ export default function GovernanceMap({
                     <h3 className="text-lg font-medium text-white mb-0.5 whitespace-nowrap">{hoveredNode.name}</h3>
                     <p className="text-[10px] text-white/50 uppercase tracking-widest leading-none">{hoveredNode.regimeType}</p>
                   </div>
-                  <div className="flex flex-col items-end">
-                    <span className="text-[9px] text-white/40 uppercase font-bold tracking-widest mb-1 leading-none">Prosperity</span>
-                    <div 
-                      className="text-white px-2 py-1 rounded text-xs font-bold border leading-none bg-[#00f2ff]/20 border-[#00f2ff]"
-                    >
-                      {Math.round(hoveredNode.prosperityScore || 0)}
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-2 border-t border-white/10 pt-3 mt-3">
-                  <div className="flex flex-col">
-                    <span className="text-[8px] text-white/40 uppercase tracking-wider mb-0.5 font-bold">GDP (PPP)</span>
-                    <span className="text-xs text-white font-mono">${Math.round(hoveredNode.gdpPpp / 1000)}k</span>
-                  </div>
-                  <div className="flex flex-col border-l border-white/10 pl-2">
-                    <span className="text-[8px] text-white/40 uppercase tracking-wider mb-0.5 font-bold">CPI</span>
-                    <span className="text-xs text-[#00f2ff] font-mono">{hoveredNode.score}</span>
-                  </div>
-                  <div className="flex flex-col border-l border-white/10 pl-2">
-                    <span className="text-[8px] text-white/40 uppercase tracking-wider mb-0.5 font-bold">Inflation</span>
-                    <span className="text-xs text-[#4ade80] font-mono">{Math.round(hoveredNode.inflation || 0)}%</span>
-                  </div>
                 </div>
 
-                <div className="flex items-center gap-2 border-t border-white/10 pt-3 mt-3">
-                  {hoveredNode.trend === 'Rising' && <TrendingUp className="w-3.5 h-3.5 text-[#4ade80]" />}
-                  {hoveredNode.trend === 'Sinking' && <TrendingDown className="w-3.5 h-3.5 text-[#fb7185]" />}
-                  {hoveredNode.trend === 'Stable' && <Minus className="w-3.5 h-3.5 text-white/50" />}
-                  <span 
-                    className="text-[10px] uppercase tracking-tighter font-bold"
-                    style={{ color: hoveredNode.trend === 'Rising' ? '#4ade80' : hoveredNode.trend === 'Sinking' ? '#fb7185' : '#a1a1aa' }}
-                  >
-                    {hoveredNode.trend} CPI Trend
+                {/* Primary Metric Focus */}
+                <div className="bg-black/20 rounded-lg border border-white/5 p-3 mb-4 flex flex-col items-center justify-center relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-b from-brand-soft/10 to-transparent pointer-events-none" />
+                  <span className="text-[10px] text-white/60 uppercase tracking-[0.2em] font-bold mb-1 z-10">{yAxisLabels[yAxis]}</span>
+                  <span className="text-3xl text-white font-mono font-bold drop-shadow-[0_0_10px_rgba(255,255,255,0.3)] z-10 tracking-tight">
+                    {yDomains[yAxis].format(getYValue(hoveredNode))}
                   </span>
+                  {hoveredNode.trend && yAxis === 'CPI' && (
+                    <div className="flex items-center gap-1.5 mt-2 z-10">
+                      {hoveredNode.trend === 'Rising' && <TrendingUp className="w-3.5 h-3.5 text-[#4ade80]" />}
+                      {hoveredNode.trend === 'Sinking' && <TrendingDown className="w-3.5 h-3.5 text-[#fb7185]" />}
+                      {hoveredNode.trend === 'Stable' && <Minus className="w-3.5 h-3.5 text-white/50" />}
+                      <span 
+                        className="text-[9px] uppercase tracking-wider font-bold"
+                        style={{ color: hoveredNode.trend === 'Rising' ? '#4ade80' : hoveredNode.trend === 'Sinking' ? '#fb7185' : '#a1a1aa' }}
+                      >
+                        {hoveredNode.trend} Trend
+                      </span>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-2 gap-y-3 gap-x-2 border-t border-white/10 pt-3">
+                  {[
+                    { label: 'Prosperity', value: Math.round(hoveredNode.prosperityScore || 0).toString(), color: 'text-white', key: 'ProsperityScore' },
+                    { label: 'Life Expectancy', value: `${Math.round(hoveredNode.lifeExpectancy || 0)} yrs`, color: 'text-white', key: 'LifeExpectancy' },
+                    { label: 'GDP (PPP)', value: `$${Math.round(hoveredNode.gdpPpp / 1000)}k`, color: 'text-white', key: 'GDP' },
+                    { label: 'CPI Score', value: hoveredNode.score.toString(), color: 'text-[#00f2ff]', key: 'CPI' },
+                  ].filter(m => m.key !== yAxis).slice(0, 4).map((metric, i) => (
+                    <div key={metric.key} className="flex flex-col">
+                      <span className="text-[8px] text-white/40 uppercase tracking-wider mb-0.5 font-bold">{metric.label}</span>
+                      <span className={`text-xs ${metric.color} font-mono`}>{metric.value}</span>
+                    </div>
+                  ))}
                 </div>
               </motion.div>
             )}
