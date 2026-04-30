@@ -24,12 +24,12 @@ export default function TimelineControl({ currentYear, isPlaying, onYearChange, 
           <div className="flex justify-between items-center px-1">
              <span className="text-[10px] font-mono text-text-secondary tracking-widest font-bold">2000</span>
              <span className="text-lg font-black tracking-widest text-text-primary leading-none">{currentYear}</span>
-             <span className="text-[10px] font-mono text-text-secondary tracking-widest font-bold">2024</span>
+             <span className="text-[10px] font-mono text-text-secondary tracking-widest font-bold">2026</span>
           </div>
           <input 
             type="range"
             min="2000"
-            max="2024"
+            max="2026"
             step="1"
             value={currentYear}
             onChange={(e) => onYearChange(parseInt(e.target.value))}

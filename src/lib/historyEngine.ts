@@ -4,6 +4,7 @@ export function generateDecade(baseData: CountryCPI[]): Record<number, CountryCP
   const history: Record<number, CountryCPI[]> = {};
   history[2024] = JSON.parse(JSON.stringify(baseData)); // Base truth
 
+  // Generate backwards to 2000
   for (let year = 2023; year >= 2000; year--) {
     history[year] = history[year + 1].map(country => {
       // Create the past state from the future state (year + 1)
@@ -49,8 +50,48 @@ export function generateDecade(baseData: CountryCPI[]): Record<number, CountryCP
     });
   }
 
+  // Generate forwards to 2026
+  for (let year = 2025; year <= 2026; year++) {
+    history[year] = history[year - 1].map(country => {
+      let scoreChange = 0;
+      if (country.trend === 'Rising') {
+        scoreChange = (Math.random() * 2); 
+      } else if (country.trend === 'Sinking') {
+        scoreChange = -(Math.random() * 2);
+      } else {
+        scoreChange = (Math.random() * 2) - 1;
+      }
+
+      let newScore = Math.max(0, Math.min(100, Math.round(country.score + scoreChange)));
+      const inflationFactor = 1 + (Math.random() * 0.03 + 0.01);
+      let newGdp = country.gdpPpp * inflationFactor;
+
+      let newHappiness = Math.max(0, Math.min(10, country.happiness + (Math.random() * 0.2 - 0.1)));
+      let newMeaning = Math.max(0, Math.min(100, country.meaningfulLife + (Math.random() * 2 - 1)));
+
+      const randInflation = Math.random() * 2 - 1.0; 
+      const randUnemp = Math.random() * 1.5 - 0.75;
+      const randEdu = (Math.random() * 0.4); 
+      const randLife = (Math.random() * 0.25 + 0.05); 
+      const randPress = Math.random() * 2 - 1;
+
+      return {
+        ...country,
+        score: newScore,
+        gdpPpp: newGdp,
+        happiness: newHappiness,
+        meaningfulLife: newMeaning,
+        inflation: Math.max(0, (country.inflation || 5) + randInflation),
+        unemployment: Math.max(0.5, (country.unemployment || 5) + randUnemp),
+        education: Math.max(0, Math.min(100, (country.education || 50) + randEdu)),
+        lifeExpectancy: Math.max(30, Math.min(95, (country.lifeExpectancy || 70) + randLife)),
+        pressFreedom: Math.max(0, Math.min(100, (country.pressFreedom || 50) + randPress))
+      };
+    });
+  }
+
   // Calculate Prosperity Score and Rank for each year
-  for (let year = 2000; year <= 2024; year++) {
+  for (let year = 2000; year <= 2026; year++) {
     const yearData = history[year];
     
     yearData.forEach(country => {

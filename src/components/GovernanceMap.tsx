@@ -1,9 +1,9 @@
 import React, { useMemo, useState, useEffect, useRef, memo, useCallback } from 'react';
 import * as d3 from 'd3-force';
 import { motion, AnimatePresence } from 'motion/react';
-import { CountryCPI } from '../data/cpi2024';
+import { CountryCPI, isDataMissingForYear } from '../data/cpi2024';
 import { getFlagUrl, lerpColor } from '../lib/utils';
-import { TrendingDown, TrendingUp, Minus } from 'lucide-react';
+import { TrendingDown, TrendingUp, Minus, AlertCircle } from 'lucide-react';
 
 interface SimulationNode extends d3.SimulationNodeDatum, CountryCPI {
   x: number;
@@ -23,6 +23,7 @@ interface MapNodeProps {
   isUnhoveredRegime: boolean | '' | 0 | undefined;
   hasSelection: boolean;
   isPlaying: boolean;
+  isMissingData: boolean;
   onMouseEnter: (node: SimulationNode) => void;
   onMouseLeave: () => void;
   onClick: (id: string) => void;
@@ -31,7 +32,7 @@ interface MapNodeProps {
 const MapNode = memo(({
   node, radius, isMatched, isUnmatched, isHovered, isSelected, 
   isRegionHovered, isRegimeHovered, isUnhoveredRegion, isUnhoveredRegime, 
-  hasSelection, isPlaying, onMouseEnter, onMouseLeave, onClick
+  hasSelection, isPlaying, isMissingData, onMouseEnter, onMouseLeave, onClick
 }: MapNodeProps) => {
   const isHighlighted = isSelected || isMatched || isHovered || isRegionHovered || isRegimeHovered;
   
@@ -43,6 +44,11 @@ const MapNode = memo(({
   else if (hasSelection && !isSelected) { opacity = 0.45; grayscale = true; }
   else if (!isHovered && !isMatched && (isUnhoveredRegion || isUnhoveredRegime)) opacity = 0.15;
   else if (!isHovered && !isMatched && (opacity === 1)) opacity = 0.8; // Default fade for non-highlighted
+
+  if (isMissingData && !isHovered && !isSelected) {
+    opacity = Math.min(opacity, 0.2); // Wash out missing data
+    grayscale = true;
+  }
 
   const yOffset = (node.score % 3) * 2;
   
@@ -130,6 +136,11 @@ const MapNode = memo(({
                {pulseDir === 'Up' && <TrendingUp className="w-5 h-5 text-[#4ade80] drop-shadow-[0_4px_6px_rgba(0,0,0,0.9)] stroke-[4]" />}
                {pulseDir === 'Down' && <TrendingDown className="w-5 h-5 text-[#fb7185] drop-shadow-[0_4px_6px_rgba(0,0,0,0.9)] stroke-[4]" />}
             </div>
+            {node.hasHistoricalGaps && (
+              <div className="absolute -top-1 -right-1 z-30 pointer-events-none bg-surface-canvas rounded-full shadow-[0_0_5px_rgba(0,0,0,0.5)]">
+                <AlertCircle className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500/20" />
+              </div>
+            )}
           </div>
        </div>
     </motion.div>
@@ -137,11 +148,6 @@ const MapNode = memo(({
 });
 
 MapNode.displayName = 'MapNode';
-
-interface GovernanceMapProps {
-  data: CountryCPI[];
-  searchQuery: string;
-}
 
 export const REGIONS = ['All', 'Europe', 'Americas', 'Asia Pacific', 'Middle East', 'Africa'];
 export const REGIMES = ['All', 'Full Democracy', 'Flawed Democracy', 'Hybrid Regime', 'Authoritarian'];
@@ -331,24 +337,43 @@ export default function GovernanceMap({
     // Calculate size that fits nicely into the viewport area
     let idealRadius = Math.sqrt(area / (filteredData.length * 4.5)) / 2;
     if (groupBy !== 'None') {
-       idealRadius *= 0.65;
+       idealRadius *= 0.7; // slight reduction when grouped to avoid too much overlap
     }
-    return Math.max(12, Math.min(36, idealRadius));
+    return Math.max(14, Math.min(42, idealRadius));
   };
   const dynamicRadius = getDynamicRadius();
 
-  const domain = yDomains[yAxis];
-  const paddingY = 40;
-  const usableHeight = dimensions.height - paddingY * 2;
+  const domain = useMemo(() => {
+    const base = yDomains[yAxis];
+    if (yAxis !== 'GDP' || data.length === 0) return base;
+    
+    // Instead of linear ticks, let's use logarithmic feeling ticks for GDP since we use log scale
+    const ticks = [120000, 48000, 16000, 4000, 1000];
+    
+    return { ...base, max: 130000, min: 500, ticks };
+  }, [yAxis, data]);
+
+  const paddingTop = Math.max(80, dimensions.height * 0.15);
+  const paddingBottom = Math.max(80, dimensions.height * 0.15);
+  const usableHeight = dimensions.height - paddingTop - paddingBottom;
   const invertedAxis = ['Inflation', 'Unemployment'].includes(yAxis);
 
   const getRatio = useCallback((val: number) => {
-    let ratio = (val - domain.min) / (domain.max - domain.min);
+    let ratio = 0;
+    if (yAxis === 'GDP' && domain.max > 0) {
+      const minLog = Math.log(domain.min); // Floor for log scale
+      const maxLog = Math.log(domain.max);
+      const valLog = Math.log(Math.max(domain.min, val));
+      ratio = (valLog - minLog) / (maxLog - minLog);
+    } else {
+      ratio = (val - domain.min) / (domain.max - domain.min);
+    }
+    
     // clamp ratio to 0-1
     ratio = Math.max(0, Math.min(1, ratio));
     if (invertedAxis) ratio = 1 - ratio;
     return ratio;
-  }, [domain.max, domain.min, invertedAxis]);
+  }, [domain.max, domain.min, invertedAxis, yAxis]);
 
   const nodes = useMemo(() => {
     if (dimensions.width === 0 || dimensions.height === 0 || isMobile) return [];
@@ -374,13 +399,17 @@ export default function GovernanceMap({
         const columnWidth = plotWidth / regimes.length;
         return (index * columnWidth) + (columnWidth / 2);
       }
-      return plotWidth / 2;
+      // "Global" spread. Let's make them fill a wide horizontal band harmonically
+      const hash = d.id.charCodeAt(0) + (d.id.charCodeAt(1) || 0) * 11;
+      const spread = plotWidth * 0.85; // 85% of screen width to use maximum space
+      const offset = ((hash % 100) / 100 - 0.5) * spread;
+      return (plotWidth / 2) + offset;
     };
     
     const getYPos = (d: CountryCPI) => {
        const val = Math.min(getYValue(d), domain.max);
        const ratio = getRatio(val);
-       return paddingY + usableHeight * (1 - ratio);
+       return paddingTop + usableHeight * (1 - ratio);
     };
 
     const simulationNodes: SimulationNode[] = filteredData.map((d) => {
@@ -389,9 +418,15 @@ export default function GovernanceMap({
       // Inherit previous position to avoid hard respawn popping between years
       const prev = prevNodesRef.current.get(d.id);
       
+      // Initial horizontal scatter if no previous position
+      let initX = getTargetX(d);
+      if (prev) {
+         initX = prev.x;
+      }
+      
       return {
         ...d,
-        x: prev ? prev.x : plotWidth / 2, 
+        x: initX, 
         y: prev ? prev.y : targetY,
         vy: 0,
         vx: 0,
@@ -402,25 +437,25 @@ export default function GovernanceMap({
       .forceSimulation<SimulationNode>(simulationNodes)
       .force(
         'y',
-        d3.forceY<SimulationNode>((d) => getYPos(d)).strength(1)
+        d3.forceY<SimulationNode>((d) => getYPos(d)).strength(1.2) // Much softer Y to let collisions spread them vertically
       )
       .force(
         'x', 
-        d3.forceX<SimulationNode>(getTargetX).strength(groupBy === 'None' ? 0.015 : 0.2) // Much weaker X force so they fill the screen
+        d3.forceX<SimulationNode>(getTargetX).strength(groupBy === 'None' ? 0.08 : 0.15) 
       )
-      .force('charge', d3.forceManyBody().strength(groupBy === 'None' ? -15 : -30))
-      .force('collide', d3.forceCollide<SimulationNode>(radius + 3).iterations(4))
+      .force('charge', d3.forceManyBody().strength(groupBy === 'None' ? -10 : -14)) // Softer charge so they don't explode
+      .force('collide', d3.forceCollide<SimulationNode>(radius + 1.5).iterations(4)) 
       .stop();
 
-    // Warm up the simulation
-    for (let i = 0; i < 150; ++i) {
+    // Warm up the simulation with more ticks for a stable scatter
+    for (let i = 0; i < 200; ++i) {
       simulation.tick();
     }
     
     // Constrain nodes strictly into bounds after simulation
     simulationNodes.forEach(n => {
       n.x = Math.max(radius + 5, Math.min(plotWidth - radius - 5, n.x));
-      n.y = Math.max(radius, Math.min(usableHeight - radius, n.y));
+      n.y = Math.max(paddingTop + radius, Math.min(dimensions.height - paddingBottom - radius, n.y));
     });
 
     // Save final positions for the next render timeline increment
@@ -500,8 +535,8 @@ export default function GovernanceMap({
                   .slice(0, 50)
                   .map((country, index) => {
                     const value = getYValue(country);
-                    const MaxVal = yDomains[yAxis].max;
-                    const percent = Math.min(100, Math.max(0, (value / MaxVal) * 100));
+                    const MaxVal = domain.max;
+                    const percent = getRatio(value) * 100;
                     
                     return (
                       <motion.div 
@@ -523,12 +558,17 @@ export default function GovernanceMap({
                         <div className="flex items-center justify-between relative z-10 w-full pl-2 pr-3">
                            <div className="flex items-center gap-2">
                              <span className="text-[8px] font-mono text-text-tertiary w-3 text-right shrink-0 opacity-50">{index + 1}.</span>
-                             <img src={getFlagUrl(country.id)} alt={country.name} className="w-4 h-4 rounded-full border border-border-subtle object-cover shrink-0 opacity-90" />
+                             <div className="relative shrink-0">
+                               <img src={getFlagUrl(country.id)} alt={country.name} className="w-4 h-4 rounded-full border border-border-subtle object-cover opacity-90" />
+                               {country.hasHistoricalGaps && (
+                                 <AlertCircle className="absolute -top-1 -right-1 w-2.5 h-2.5 text-yellow-500 fill-yellow-500/20 bg-surface-canvas rounded-full" />
+                               )}
+                             </div>
                              <span className="text-text-primary font-medium text-[9px] tracking-wide truncate max-w-[140px] drop-shadow-md">{country.name}</span>
                            </div>
                            <div className="flex items-center shrink-0">
                               <span className="text-[10px] font-bold font-mono tracking-tighter drop-shadow-md" style={{ color: lerpColor(country.prosperityScore || country.score) }}>
-                                 {yDomains[yAxis].format(value)}
+                                 {domain.format(value)}
                               </span>
                            </div>
                         </div>
@@ -564,7 +604,7 @@ export default function GovernanceMap({
                <div 
                  key={tick} 
                  className="absolute w-full flex justify-center -translate-y-1/2 text-[10px] font-mono text-text-tertiary"
-                 style={{ top: paddingY + usableHeight * (1 - getRatio(tick)) }}
+                 style={{ top: paddingTop + usableHeight * (1 - getRatio(tick)) }}
                >
                  <span className={i === Math.floor(domain.ticks.length/2) ? "text-brand-accent font-bold tracking-widest text-xs opacity-80" : ""}>
                    {domain.format(tick)}
@@ -598,19 +638,19 @@ export default function GovernanceMap({
             {/* Threshold Lines */}
             {dimensions.height > 0 && (
                <>
-                 <div className="absolute w-[80%] left-[10%] flex items-center opacity-40 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ top: paddingY + usableHeight * (1 - getRatio(thresholds.top5)) }}>
+                 <div className="absolute w-[80%] left-[10%] flex items-center opacity-40 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ top: paddingTop + usableHeight * (1 - getRatio(thresholds.top5)) }}>
                    <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-[#4ade80] to-transparent relative">
                      <span className="absolute -top-4 right-4 text-[9px] uppercase tracking-[0.2em] text-[#4ade80] bg-surface-canvas px-3 font-medium border border-[#4ade80]/30 rounded-full">95TH PERCENTILE</span>
                    </div>
                  </div>
-                 <div className="absolute w-1/2 left-1/4 flex items-center opacity-40 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ top: paddingY + usableHeight * (1 - getRatio(thresholds.median)) }}>
+                 <div className="absolute w-1/2 left-1/4 flex items-center opacity-40 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ top: paddingTop + usableHeight * (1 - getRatio(thresholds.median)) }}>
                    <div className="flex-1 h-[2px] bg-brand-accent/30 relative shadow-[0_0_10px_var(--brand-glow)]">
                      <span className="absolute left-1/2 -top-4 -translate-x-1/2 text-[9px] uppercase tracking-[0.2em] text-brand-accent bg-surface-canvas px-3 font-medium border border-brand-soft rounded-full shadow-[0_0_5px_var(--brand-glow)] whitespace-nowrap">
                        Global Median
                      </span>
                    </div>
                  </div>
-                 <div className="absolute w-[80%] left-[10%] flex items-center opacity-40 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ top: paddingY + usableHeight * (1 - getRatio(thresholds.bottom5)) }}>
+                 <div className="absolute w-[80%] left-[10%] flex items-center opacity-40 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ top: paddingTop + usableHeight * (1 - getRatio(thresholds.bottom5)) }}>
                    <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-[#fb7185] to-transparent relative">
                      <span className="absolute -top-4 right-4 text-[9px] uppercase tracking-[0.2em] text-[#fb7185] bg-surface-canvas px-3 font-medium border border-[#fb7185]/30 rounded-full">5TH PERCENTILE</span>
                    </div>
@@ -660,6 +700,7 @@ export default function GovernanceMap({
             const isUnhoveredRegime = hoveredRegime && hoveredRegime !== 'All' && node.regimeType !== hoveredRegime;
             
             const hasSelection = selectedNodeIds.length > 0;
+            const isMissingData = isDataMissingForYear(node.id, currentYear);
             
             return (
               <MapNode
@@ -676,6 +717,7 @@ export default function GovernanceMap({
                 isUnhoveredRegime={isUnhoveredRegime}
                 hasSelection={hasSelection}
                 isPlaying={isPlaying}
+                isMissingData={isMissingData}
                 onMouseEnter={handleNodeMouseEnter}
                 onMouseLeave={handleNodeMouseLeave}
                 onClick={handleNodeClickBounded}
@@ -695,8 +737,18 @@ export default function GovernanceMap({
               >
                 <div className="flex justify-between items-start mb-3">
                   <div>
-                    <h3 className="text-lg font-medium text-white mb-0.5 whitespace-nowrap">{hoveredNode.name}</h3>
-                    <p className="text-[10px] text-white/50 uppercase tracking-widest leading-none">{hoveredNode.regimeType}</p>
+                    <h3 className="text-lg font-medium text-white mb-0.5 whitespace-nowrap overflow-hidden text-ellipsis flex items-center gap-2">
+                      {hoveredNode.name}
+                      {hoveredNode.hasHistoricalGaps && <AlertCircle className="w-4 h-4 text-yellow-500 fill-yellow-500/20 shrink-0" />}
+                    </h3>
+                    <div className="flex flex-col gap-1 mt-1">
+                      <p className="text-[10px] text-white/50 uppercase tracking-widest leading-none">{hoveredNode.regimeType}</p>
+                      {hoveredNode.hasHistoricalGaps && (
+                        <p className="text-[8px] text-yellow-500/80 uppercase tracking-widest leading-none bg-yellow-500/10 px-1 py-0.5 rounded-sm inline-block w-fit mt-1 border border-yellow-500/20">
+                          Modeled Data (Gaps Extrapolated)
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -705,7 +757,7 @@ export default function GovernanceMap({
                   <div className="absolute inset-0 bg-gradient-to-b from-brand-soft/10 to-transparent pointer-events-none" />
                   <span className="text-[10px] text-white/60 uppercase tracking-[0.2em] font-bold mb-1 z-10">{yAxisLabels[yAxis]}</span>
                   <span className="text-3xl text-white font-mono font-bold drop-shadow-[0_0_10px_rgba(255,255,255,0.3)] z-10 tracking-tight">
-                    {yDomains[yAxis].format(getYValue(hoveredNode))}
+                    {domain.format(getYValue(hoveredNode))}
                   </span>
                   {hoveredNode.trend && yAxis === 'CPI' && (
                     <div className="flex items-center gap-1.5 mt-2 z-10">

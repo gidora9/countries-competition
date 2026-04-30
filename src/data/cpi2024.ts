@@ -15,6 +15,7 @@ export interface CountryCPI {
   pressFreedom?: number;
   prosperityScore?: number;
   prosperityRank?: number;
+  hasHistoricalGaps?: boolean;
 }
 
 export const cpiData: CountryCPI[] = [
@@ -172,6 +173,31 @@ const realDataMap: Record<string, { gdp: number, le: number, unemp: number, inf:
   SO: { gdp: 1500, le: 56.5, unemp: 12.0, inf: 10.0, edu: 25 },
 };
 
+export const missingDataRanges: Record<string, [number, number]> = {
+  'SS': [2000, 2011], // South Sudan became independent in 2011
+  'KV': [2000, 2007], // Kosovo independent in 2008
+  'ME': [2000, 2005], // Montenegro independent in 2006
+  'RS': [2000, 2005], // Serbia independent in 2006
+  'SO': [2000, 2011], // Somalia missing in CPI before ~2012
+  'KP': [2000, 2011], // North Korea missing in CPI before ~2012
+  'AF': [2000, 2004], // Afghanistan missing early 2000s
+  'SY': [2000, 2003],
+  'CU': [2000, 2005],
+  'ER': [2000, 2004],
+  'IQ': [2000, 2002],
+  'LY': [2000, 2002],
+  'MM': [2000, 2011], // Myanmar missing before 2012
+  'VE': [2000, 2001]
+};
+
+export const isDataMissingForYear = (id: string, year: number): boolean => {
+  const range = missingDataRanges[id];
+  if (range && year >= range[0] && year <= range[1]) {
+    return true;
+  }
+  return false;
+};
+
 export const enrichedCpiData: CountryCPI[] = cpiData.map((d: CountryCPI) => {
   const random = mulberry32(d.id.charCodeAt(0) + d.id.charCodeAt(1) * 10);
   const factor = d.score / 100;
@@ -190,6 +216,7 @@ export const enrichedCpiData: CountryCPI[] = cpiData.map((d: CountryCPI) => {
     unemployment: unemp,
     education: edu,
     lifeExpectancy: le,
-    pressFreedom: Number(Math.min(100, Math.max(0, d.score + (random() * 20 - 10))).toFixed(1))
+    pressFreedom: Number(Math.min(100, Math.max(0, d.score + (random() * 20 - 10))).toFixed(1)),
+    hasHistoricalGaps: !!missingDataRanges[d.id]
   };
 });

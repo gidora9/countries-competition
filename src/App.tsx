@@ -48,9 +48,9 @@ export default function App() {
     if (isPlaying) {
       const timer = setInterval(() => {
         setCurrentYear(prev => {
-          if (prev >= 2024) {
+          if (prev >= 2026) {
             setIsPlaying(false);
-            return 2024;
+            return 2026;
           }
           return prev + 1;
         });
@@ -392,7 +392,7 @@ export default function App() {
               setIsPlaying(false); // Manual scrub halts playback
             }}
             onTogglePlay={() => {
-              if (currentYear === 2024) setCurrentYear(2000); // Rewind logic
+              if (currentYear === 2026) setCurrentYear(2000); // Rewind logic
               setIsPlaying(!isPlaying);
             }}
           />
@@ -400,7 +400,7 @@ export default function App() {
           {/* LOW PROFILE FOOTER FOR DATA SOURCES */}
           <div className="absolute bottom-2 right-4 z-40 pointer-events-none text-right">
              <div className="text-[9px] text-text-tertiary/60 font-mono tracking-widest flex items-center justify-end gap-2 drop-shadow-md opacity-40">
-                <span className="uppercase">Interactive Visual Explorer • 2000-2024</span>
+                <span className="uppercase">Interactive Visual Explorer • 2000-2026</span>
              </div>
           </div>
         </div>
